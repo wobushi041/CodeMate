@@ -54,3 +54,17 @@ create table if not exists user_team
     isDelete   tinyint  default 0                 not null comment '是否删除'
 )
     comment = '用户队伍关系';
+
+create table if not exists chat_message
+(
+    id              bigint auto_increment comment 'id'
+        primary key,
+    teamId          bigint                             not null comment '队伍id/聊天室id',
+    clientMessageId varchar(64)                        null comment '客户端消息id',
+    fromUserId      bigint                             not null comment '发送者id',
+    fromUsername    varchar(256)                       null comment '发送者昵称',
+    content         varchar(2048)                      not null comment '消息内容',
+    createTime      datetime default CURRENT_TIMESTAMP null comment '创建时间',
+    isDelete        tinyint  default 0                 not null comment '是否删除'
+)
+    comment = '聊天消息';

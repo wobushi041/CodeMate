@@ -5,6 +5,7 @@ server:
     session:
       cookie:
         domain: localhost
+        path: /
 
 spring:
   application:
@@ -38,6 +39,10 @@ spring:
     store-type: redis
 
 match:
+  websocket:
+    enabled: true
+    port: 8091
+    path: /ws/chat
   cache:
     warmup:
       bootstrap-enabled: true
@@ -59,7 +64,7 @@ match:
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: false
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
   global-config:
     db-config:
       logic-delete-field: isDelete # 全局逻辑删除的实体字段名(since 3.3.0,配置后可以忽略不配置步骤2)

@@ -15,6 +15,8 @@ import com.wobushi041.matchsystem.utils.AlgorithmUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.ibatis.scripting.xmltags.ForEachSqlNode;
+import org.redisson.api.RBucket;
+import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.DigestUtils;
@@ -22,7 +24,9 @@ import org.springframework.util.ObjectUtils;
 
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -39,13 +43,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @Resource
     private UserMapper userMapper;
+    @Resource
+    private RedissonClient redissonClient;
+
     /**
      * 盐值，混淆密码
      */
     private static final String SALT = "041";
-
-
-
 
     /**
      * 用户注册
@@ -274,17 +278,28 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         return loginUser != null && loginUser.getUserRole() == UserConstant.ADMIN_ROLE;
     }
 
-/**
- * 匹配用户方法。
- * 根据当前用户的标签找出数据库中标签相似的用户。
- * 这个方法首先过滤出所有有标签的用户，然后使用编辑距离算法（Levenshtein distance）
- * 计算标签相似度，最后返回相似度最高的用户列表。
- * @param num 需要返回的用户数量，此数值应大于0且不超过20。
- * @param loginUser 当前登录的用户对象，用于从中提取标签进行比较。
- * @return 返回一个列表，包含与当前用户标签最相似的其他用户。
- */
+    /**
+     * 匹配用户方法。
+     * 根据当前用户的标签找出数据库中标签相似的用户。
+     * 这个方法首先过滤出所有有标签的用户，然后使用编辑距离算法（Levenshtein distance）
+     * 计算标签相似度，最后返回相似度最高的用户列表。
+     * @param num 需要返回的用户数量，此数值应大于0且不超过20。
+     * @param loginUser 当前登录的用户对象，用于从中提取标签进行比较。
+     * @return 返回一个列表，包含与当前用户标签最相似的其他用户。
+     */
     @Override
     public List<User> matchUsers(long num, User loginUser) {
+        Long loginUserId = loginUser.getId();
+        String redisKey = buildMatchUsersCacheKey(loginUserId);
+        RBucket<Object> bucket = redissonClient.getBucket(redisKey);
+        Object cachedValue = bucket.get();
+        if (cachedValue instanceof List) {
+            return (List<User>) cachedValue;
+        }
+        loginUser = this.getById(loginUserId);
+        if (loginUser == null || StringUtils.isBlank(loginUser.getTags())) {
+            return Collections.emptyList();
+        }
         // 初始化查询条件，确保用户的标签不为空
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         queryWrapper.isNotNull("tags"); // 确保查询的用户有标签信息
@@ -295,12 +310,15 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         String tags = loginUser.getTags();
         Gson gson = new Gson();
         List<String> tagList = gson.fromJson(tags, new TypeToken<List<String>>(){}.getType());
+        if (CollectionUtils.isEmpty(tagList)) {
+            return Collections.emptyList();
+        }
         // 准备用于存储用户与距离信息的列表
-        List<Pair<User, Long>> list = new ArrayList<>();
+        List<Pair<User, Double>> list = new ArrayList<>();
         for (User user : userList) {
             String userTags = user.getTags();
             // 排除空标签以及当前用户自己
-            if (StringUtils.isBlank(userTags) || user.getId() == loginUser.getId()) {
+            if (StringUtils.isBlank(userTags) || Objects.equals(user.getId(), loginUser.getId())) {
                 continue;
             }
             List<String> userTagList = gson.fromJson(userTags, new TypeToken<List<String>>(){}.getType());
@@ -308,20 +326,21 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             if (CollectionUtils.isEmpty(userTagList)) {
                 continue;
             }
-            // 计算标签列表之间的编辑距离
-            long distance = AlgorithmUtils.minDistance(tagList, userTagList);
-            //log.info("用户 {} 的标签: {}, 编辑距离: {}", user.getId(), userTagList, distance);
-            list.add(new Pair<>(user, distance));
+            double score = calculateFriendMatchScore(tagList, userTagList);
+            list.add(new Pair<>(user, score));
         }
-        // 按编辑距离进行排序并获取距离最小的前num个用户
-        List<Pair<User, Long>> topUserPairList = list.stream()
-                .sorted(Comparator.comparingLong(Pair::getSecond))  // 根据配对中的值（距离）进行排序
+        // 按综合相似度分数从高到低排序
+        List<Pair<User, Double>> topUserPairList = list.stream()
+                .sorted((o1, o2) -> Double.compare(o2.getSecond(), o1.getSecond()))
                 .limit(num)  // 限制结果数量，只取距离最小的前num个用户
                 .collect(Collectors.toList());  // 收集最终的配对列表
         // 提取最匹配的用户ID列表
         List<Long> userListVo = topUserPairList.stream()
                 .map(pair -> pair.getFirst().getId())  // 从配对中提取用户ID
                 .collect(Collectors.toList());
+        if (CollectionUtils.isEmpty(userListVo)) {
+            return Collections.emptyList();
+        }
         // 根据ID重新查询用户信息，并进行脱敏处理
         QueryWrapper<User> userQueryWrapper = new QueryWrapper<>();
         userQueryWrapper.in("id", userListVo);  // 使用用户ID过滤查询
@@ -334,7 +353,58 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         for (Long userId : userListVo) {
             finalUserList.add(userIdUserListMap.get(userId).get(0));  // 从映射中获取用户并添加到最终列表
         }
+        bucket.set(finalUserList,7, TimeUnit.DAYS);
         return finalUserList;
+    }
+
+    private double calculateFriendMatchScore(List<String> list1, List<String> list2) {
+        List<String> resultList1 = list1.stream()
+                .filter(Objects::nonNull)
+                .map(item -> item.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toList());
+        List<String> resultList2 = list2.stream()
+                .filter(Objects::nonNull)
+                .map(item -> item.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toList());
+        int strType1 = AlgorithmUtils.getStrType(resultList1);
+        int strType2 = AlgorithmUtils.getStrType(resultList2);
+        if (strType1 == AlgorithmUtils.MIXED_CHINESE_ENGLISH) {
+            resultList1 = AlgorithmUtils.tokenize(resultList1);
+        }
+        if (strType2 == AlgorithmUtils.MIXED_CHINESE_ENGLISH) {
+            resultList2 = AlgorithmUtils.tokenize(resultList2);
+        }
+        double ikScore = calculateIkScore(list1, list2, strType1, strType2);
+        int editDistanceScore = AlgorithmUtils.calculateEditDistance(resultList1, resultList2);
+        double maxEditDistance = Math.max(resultList1.size(), resultList2.size());
+        double editDistance = maxEditDistance == 0 ? 0 : 1 - editDistanceScore / maxEditDistance;
+        double jaccardScore = AlgorithmUtils.calculateJaccardSimilarity(resultList1, resultList2);
+        double similarityScore = AlgorithmUtils.cosineSimilarity(resultList1, resultList2);
+        return editDistance * 0.5 + jaccardScore * 0.3 + similarityScore * 0.2 + ikScore * 0.3;
+    }
+
+    private double calculateIkScore(List<String> list1, List<String> list2, int strType1, int strType2) {
+        if (strType1 == AlgorithmUtils.ENGLISH || strType2 == AlgorithmUtils.ENGLISH) {
+            return 0D;
+        }
+        try {
+            List<String> quotedList1 = list1.stream()
+                    .filter(Objects::nonNull)
+                    .map(item -> "\"" + item.toLowerCase(Locale.ROOT) + "\"")
+                    .collect(Collectors.toList());
+            List<String> quotedList2 = list2.stream()
+                    .filter(Objects::nonNull)
+                    .map(item -> "\"" + item.toLowerCase(Locale.ROOT) + "\"")
+                    .collect(Collectors.toList());
+            String tags1 = AlgorithmUtils.collectChineseChars(quotedList1);
+            String tags2 = AlgorithmUtils.collectChineseChars(quotedList2);
+            List<String> analyzedTags1 = AlgorithmUtils.analyzeText(tags1);
+            List<String> analyzedTags2 = AlgorithmUtils.analyzeText(tags2);
+            return AlgorithmUtils.calculateJaccardSimilarity(analyzedTags1, analyzedTags2);
+        } catch (IOException e) {
+            log.warn("IK analyze failed, fallback ikScore to 0", e);
+            return 0D;
+        }
     }
     /**
      * User user:前端传来的要更改的user；User loginUser：当前登录用户，
@@ -357,6 +427,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             throw new BusinessException(ErrorCode.NULL_ERROR);
         }
         return userMapper.updateById(user);
+    }
+
+    private String buildMatchUsersCacheKey(long userId){
+        return String.format("user:match:%d", userId);
     }
 
 
