@@ -15,7 +15,7 @@ import java.util.UUID;
  * 把缓存预热任务包装成message，并投递消息
  * 1.生成任务消息对象RecommendCacheWarmupMessage
  * 2.给消息设置延迟时间
- * 3.吧消息发送给对应交换机
+ * 3.把消息发送给对应交换机
  */
 @Component
 @Slf4j

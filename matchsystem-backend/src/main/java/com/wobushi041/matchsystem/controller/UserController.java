@@ -165,7 +165,7 @@ public class UserController {
 
 
     @GetMapping("/match")
-    public BaseResponse<List<User>> matchUsers(@RequestParam long num, HttpServletRequest request) {
+    public BaseResponse<List<User>> matchUsers(@RequestParam(value = "num") long num, HttpServletRequest request) {
         if (num <= 0 || num > 20) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "匹配人数必须在1到20之间");
         }

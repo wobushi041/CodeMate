@@ -186,3 +186,10 @@ java -jar target/matchsystem-0.0.1-SNAPSHOT.jar
 ```
 
 生产环境建议通过环境变量注入敏感配置，参考 `application-prod-template.yml`。
+
+
+新模块：
+netty实现聊天室功能，复用redis的USER_LOGIN_STATE键值对形成映射关系
+邮箱code登录
+优化前端
+上线服务器

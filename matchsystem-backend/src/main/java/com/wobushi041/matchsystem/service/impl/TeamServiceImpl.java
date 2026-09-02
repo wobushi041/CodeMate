@@ -262,12 +262,12 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
         return this.updateById(updateTeam);
     }
 
-/**
- * 加入队伍的方法
- * @param teamJoinRequest 队伍加入请求对象，包含队伍ID和密码等信息
- * @param loginUser 当前登录用户对象
- * @return boolean 加入队伍是否成功
- */
+    /**
+      * 加入队伍的方法
+      * @param teamJoinRequest 队伍加入请求对象，包含队伍ID和密码等信息
+      * @param loginUser 当前登录用户对象
+      * @return boolean 加入队伍是否成功
+    */
     @Override
     public boolean joinTeam(TeamJoinRequest teamJoinRequest, User loginUser) {
     // 检查请求参数是否为空

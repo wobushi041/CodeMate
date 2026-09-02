@@ -59,7 +59,7 @@ public class RagConfig {
         }
 
         // 2. 文档切段：每段最大 1000 字符，重叠 200 字符
-        //    nomic-embed-text 上下文窗口 8192 tokens，中文友好
+        //nomic-embed-text 上下文窗口 8192 tokens，中文友好
         DocumentByParagraphSplitter splitter = new DocumentByParagraphSplitter(1000, 200);
 
         // 3. 文档加载器：切段 → 拼接文件名 → 向量化 → 存入向量库

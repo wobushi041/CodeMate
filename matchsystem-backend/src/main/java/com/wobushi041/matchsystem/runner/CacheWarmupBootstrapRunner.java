@@ -67,18 +67,18 @@ public class CacheWarmupBootstrapRunner implements ApplicationRunner {
                         cacheWarmupProducer.newWarmupMessage(userId, defaultPageNum, defaultPageSize);
                 bootstrapWarmupTask(message);
             }
-            log.info("cache warmup bootstrap finished, userIds={}", userIds);
+            log.info("缓存预热已启动, userIds={}", userIds);
         } catch (Exception e) {
-            throw new IllegalStateException("cache warmup bootstrap failed", e);
+            throw new IllegalStateException("缓存预热失败", e);
         }
     }
-
+    //加redisson锁，幂等性设计，防止重复预热
     private void bootstrapWarmupTask(RecommendCacheWarmupMessage message) throws InterruptedException {
         String lockKey = CACHE_WARMUP_BOOTSTRAP_LOCK_KEY_PREFIX + message.getTaskId();
         RLock lock = redissonClient.getLock(lockKey);
         boolean locked = false;
         try {
-            locked = lock.tryLock(0, lockLeaseSeconds, TimeUnit.SECONDS);
+            locked = lock.tryLock(0, lockLeaseSeconds, TimeUnit.MINUTES);
             if (!locked) {
                 log.info("cache warmup bootstrap lock busy, taskId={}, runId={}", message.getTaskId(), message.getRunId());
                 return;

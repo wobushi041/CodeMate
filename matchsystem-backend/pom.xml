@@ -97,6 +97,13 @@
             <version>3.17.7</version>
         </dependency>
 
+        <!-- Elasticsearch 低阶 REST 客户端，用于调用 IK 分词 analyze API -->
+        <dependency>
+            <groupId>org.elasticsearch.client</groupId>
+            <artifactId>elasticsearch-rest-client</artifactId>
+            <version>8.10.4</version>
+        </dependency>
+
         <!-- MyBatis-Plus ORM 框架（Spring Boot 3 专用 starter） -->
         <dependency>
             <groupId>com.baomidou</groupId>
