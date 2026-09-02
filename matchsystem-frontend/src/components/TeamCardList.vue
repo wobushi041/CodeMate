@@ -34,6 +34,9 @@
         <van-button v-if="team.userId === currentUser?.id" size="small" plain
                     @click="doUpdateTeam(team.id)">更新队伍
         </van-button>
+        <van-button v-if="team.userId === currentUser?.id || team.hasJoin" size="small" type="primary" plain
+                    @click="goTeamChat(team)">聊天室
+        </van-button>
         <!-- 仅加入队伍可见 -->
         <van-button v-if="team.userId !== currentUser?.id && team.hasJoin" size="small" plain
                     @click="doQuitTeam(team.id)">退出队伍
@@ -137,6 +140,16 @@ const doUpdateTeam = (id: number) => {
     path: '/team/update',
     query: {
       id,
+    }
+  })
+}
+
+const goTeamChat = (team: TeamType) => {
+  router.push({
+    path: '/team/chat',
+    query: {
+      teamId: team.id,
+      teamName: team.name,
     }
   })
 }

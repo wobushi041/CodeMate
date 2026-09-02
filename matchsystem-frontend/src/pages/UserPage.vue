@@ -1,4 +1,7 @@
 <template>
+  <div class="user-page">
+    <LogoutButton v-if="user" />
+  </div>
   <template v-if="user">
     <van-cell title="当前用户" :value="user?.username" />
     <van-cell title="AI 编程助手" is-link to="/ai/chat" />
@@ -9,33 +12,21 @@
 </template>
 
 <script setup lang="ts">
-import {useRouter} from "vue-router";
 import {onMounted, ref} from "vue";
-import myAxios from "../plugins/myAxios";
-import {Toast} from "vant";
 import {getCurrentUser} from "../services/user";
+import LogoutButton from "../components/LogoutButton.vue";
 
 
 const user = ref();
 
-const router = useRouter();
-
 onMounted(async () => {
   user.value = await getCurrentUser();
 })
-
-const toEdit = (editKey: string, editName: string, currentValue: string) => {
-  router.push({
-    path: '/user/edit',
-    query: {
-      editKey,
-      editName,
-      currentValue,
-    }
-  })
-}
 </script>
 
 <style scoped>
+.user-page {
+  padding: 12px 16px 0;
+}
 
 </style>

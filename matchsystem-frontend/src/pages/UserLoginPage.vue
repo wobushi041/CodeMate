@@ -21,6 +21,9 @@
       <van-button round block type="primary" native-type="submit">
         提交
       </van-button>
+      <van-button round block plain type="primary" style="margin-top: 8px;" @click="toRegister">
+        注册
+      </van-button>
     </div>
   </van-form>
 </template>
@@ -36,6 +39,16 @@ const route = useRoute();
 
 const userAccount = ref('');
 const userPassword = ref('');
+
+/**
+ * 跳转注册页,并携带当前 redirect 参数,注册成功后可原路返回目标页面
+ */
+const toRegister = () => {
+  router.push({
+    path: '/user/register',
+    query: route.query?.redirect ? { redirect: route.query.redirect } : {},
+  });
+};
 
 const onSubmit = async () => {
   const res = await myAxios.post('/user/login', {

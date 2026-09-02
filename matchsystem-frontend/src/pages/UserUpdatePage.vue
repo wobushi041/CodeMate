@@ -2,7 +2,12 @@
   <template v-if="user">
     <van-cell title="昵称" is-link to="/user/edit" :value="user.username"  @click="toEdit('username', '昵称', user.username)"/>
     <van-cell title="账号" :value="user.userAccount"/>
-    <van-cell title="头像" is-link to="/user/edit">
+    <van-cell
+      title="头像"
+      is-link
+      to="/user/edit"
+      @click="toEdit('avatarUrl', '头像', user.avatarUrl || '')"
+    >
       <img style="height: 48px" :src="user.avatarUrl"/>
     </van-cell>
     <van-cell title="性别" is-link :value="getGenderText(user.gender)" @click="toEdit('gender', '性别', user.gender)"/>
@@ -39,13 +44,13 @@ onMounted(async () => {
 
 const router = useRouter();
 
-const toEdit = (editKey: string, editName: string, currentValue: string) => {
+const toEdit = (editKey: string, editName: string, currentValue: string | number) => {
   router.push({
     path: '/user/edit',
     query: {
       editKey,
       editName,
-      currentValue,
+      currentValue: String(currentValue ?? ''),
     }
   })
 }
