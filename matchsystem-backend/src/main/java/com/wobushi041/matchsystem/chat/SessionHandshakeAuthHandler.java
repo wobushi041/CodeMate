@@ -53,12 +53,22 @@ public class SessionHandshakeAuthHandler extends SimpleChannelInboundHandler<Ful
     private User resolveLoginUser(FullHttpRequest request) {
         String cookieHeader = request.headers().get(HttpHeaderNames.COOKIE);
         if (cookieHeader == null || cookieHeader.isBlank()) {
+            log.warn("websocket handshake rejected: missing Cookie header, uri={}", request.uri());
             return null;
         }
-        for (Cookie cookie : ServerCookieDecoder.STRICT.decode(cookieHeader)) {
+        Set<Cookie> cookies;
+        try {
+            cookies = ServerCookieDecoder.STRICT.decode(cookieHeader);
+        } catch (IllegalArgumentException e) {
+            log.warn("websocket handshake rejected: invalid Cookie header, uri={}", request.uri(), e);
+            return null;
+        }
+        boolean hasSessionCookie = false;
+        for (Cookie cookie : cookies) {
             if (!SESSION_COOKIE_NAME.equals(cookie.name())) {
                 continue;
             }
+            hasSessionCookie = true;
             for (String sessionId : candidateSessionIds(cookie.value())) {
                 //SessionRepository 查找对应的 Session
                 Session session = sessionRepository.findById(sessionId);
@@ -70,7 +80,14 @@ public class SessionHandshakeAuthHandler extends SimpleChannelInboundHandler<Ful
                 if (userObj instanceof User user) {
                     return user;
                 }
+                log.warn("websocket handshake rejected: session found but login user missing, uri={}", request.uri());
+                return null;
             }
+        }
+        if (hasSessionCookie) {
+            log.warn("websocket handshake rejected: SESSION cookie found but session not found, uri={}", request.uri());
+        } else {
+            log.warn("websocket handshake rejected: SESSION cookie missing, uri={}", request.uri());
         }
         return null;
     }
