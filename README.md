@@ -1,149 +1,273 @@
 # AI 编程匹配助手
 
-基于标签的智能编程伙伴匹配平台，支持用户推荐、队伍管理和 AI 编程助手。
+AI 编程匹配助手是一个面向编程学习和项目协作的伙伴匹配系统。用户可以维护个人资料和技术标签，系统根据标签相似度推荐合适的伙伴；同时提供队伍管理、实时队伍聊天和 AI 编程助手能力。
 
-## 简介
+项目采用前后端分离架构：前端使用 Vue 3 + Vant 构建移动端体验，后端使用 Spring Boot 提供用户、队伍、匹配、聊天和 AI 对话接口。
 
-AI 编程匹配助手是一个前后端分离的编程伙伴匹配系统，通过标签编辑距离算法实现用户智能匹配。系统采用 Redis 缓存预热 + RabbitMQ 延时消息的架构保证推荐接口的高性能，并集成 LangChain4j + DeepSeek 提供 AI 编程助手功能。
+## 核心功能
 
-## 快速开始
-
-### 环境要求
-
-| 组件 | 版本要求 | 说明 |
-|------|----------|------|
-| JDK | 21+ | 后端编译目标 |
-| Maven | 3.6+ | 后端构建工具 |
-| Node.js | 18+ | 前端运行环境 |
-| MySQL | 8.0+ | 主数据库 |
-| Redis | 6.x+ | 缓存 + Session 存储 |
-| RabbitMQ | 3.x+ | 消息队列（需启用延迟消息插件） |
-
-### 克隆项目
-
-```bash
-git clone --recurse-submodules https://github.com/wobushi041/matchsystem.git
-cd matchsystem
-```
-
-### 后端启动
-
-```bash
-cd matchsystem-backend
-
-# 1. 初始化数据库（执行 sql/create_table.sql）
-
-# 2. 复制配置文件并修改
-cp src/main/resources/application-template.yml src/main/resources/application.yml
-# 编辑 application.yml，填写 MySQL、Redis、RabbitMQ 连接信息
-
-# 3. 启动服务
-mvn spring-boot:run
-```
-
-### 前端启动
-
-```bash
-cd matchsystem-frontend
-
-# 1. 安装依赖
-npm install
-
-# 2. 启动开发服务器
-npm run dev
-```
-
-### 访问地址
-
-| 服务 | 地址 | 说明 |
-|------|------|------|
-| 前端 | http://localhost:5173 | Vue 开发服务器 |
-| 后端 API | http://localhost:8080/api | Spring Boot 服务 |
-| API 文档 | http://localhost:8080/api/doc.html | Knife4j 接口文档 |
-
-## 功能特性
-
-- **用户管理**：注册、登录、个人信息编辑、标签管理
-- **智能匹配**：基于标签编辑距离算法的用户推荐
-- **队伍系统**：创建/加入/退出队伍，支持公开/加密/私有状态
-- **推荐缓存**：Redis 缓存预热 + 逻辑过期 + 分布式锁，保证高并发性能
-- **AI 助手**：集成 DeepSeek 的 SSE 流式编程助手，支持 RAG 增强
+- 用户认证：注册、登录、注销、登录态校验。
+- 个人资料：昵称、头像、性别、电话、邮箱、标签维护。
+- 用户匹配：基于用户标签计算相似度，支持 Redis 缓存匹配结果。
+- 用户推荐：首页推荐列表与匹配模式切换。
+- 标签搜索：按技术栈、编程语言、职业方向、年级等标签搜索用户。
+- 队伍系统：创建队伍、更新队伍、加入队伍、退出队伍、解散队伍。
+- 队伍权限：支持公开、加密、私有队伍。
+- 队伍聊天：基于 WebSocket 的队伍消息收发。
+- AI 编程助手：基于 LangChain4j + 兼容Openapi的流式问答，支持 Markdown 内容渲染。
+- 文件上传：支持本地头像上传，并通过静态资源路径访问。
 
 ## 技术栈
 
 ### 前端
 
-- Vue 3 + TypeScript
-- Vite 构建工具
-- Vant UI 组件库
-- Vue Router 路由管理
-- Axios HTTP 客户端
+- Vue 3
+- TypeScript
+- Vite
+- Vant 3
+- Vue Router
+- Axios
+- Tailwind CSS
+- marked + DOMPurify
 
 ### 后端
 
-- Spring Boot 3.5.3 + Java 21
-- MyBatis-Plus ORM
-- MySQL 数据库
-- Redis + Redisson（缓存/分布式锁）
-- RabbitMQ（延时消息队列）
-- LangChain4j + DeepSeek（AI 对话）
-- Knife4j（API 文档）
+- Java 21
+- Spring Boot 3.5.3
+- Spring MVC / WebFlux
+- MyBatis-Plus
+- MySQL
+- Redis / Redisson
+- RabbitMQ
+- Spring Session Redis
+- LangChain4j
+- DeepSeek OpenAI 兼容接口
+- Knife4j
+- Elasticsearch REST Client
 
 ## 项目结构
 
-```plaintext
-matchsystem/
-├── matchsystem-frontend/    # 前端项目（Vue 3）
+```text
+matchsystemwithlangchain/
+├── AGENTS.md
+├── README.md
+├── uploads/
+├── matchsystem-frontend/
 │   ├── src/
-│   │   ├── components/      # 公共组件
-│   │   ├── pages/           # 页面组件
-│   │   ├── services/        # API 服务
-│   │   ├── models/          # 类型定义
-│   │   └── plugins/         # 插件配置
-│   └── package.json
-│
-├── matchsystem-backend/     # 后端项目（Spring Boot）
-│   ├── src/main/java/       # Java 源码
-│   ├── src/main/resources/  # 配置文件、Mapper XML
-│   └── pom.xml
-│
-└── .gitignore               # 统一忽略规则
+│   │   ├── components/
+│   │   ├── config/
+│   │   ├── constants/
+│   │   ├── layouts/
+│   │   ├── models/
+│   │   ├── pages/
+│   │   ├── plugins/
+│   │   ├── services/
+│   │   ├── states/
+│   │   └── styles/
+│   ├── package.json
+│   └── vite.config.ts
+└── matchsystem-backend/
+    ├── src/main/java/com/wobushi041/matchsystem/
+    │   ├── chat/
+    │   ├── config/
+    │   ├── controller/
+    │   ├── mapper/
+    │   ├── model/
+    │   ├── mq/
+    │   ├── runner/
+    │   ├── service/
+    │   └── utils/
+    ├── src/main/resources/
+    │   ├── mapper/
+    │   ├── sql/
+    │   ├── application-template.yml
+    │   ├── application.yml
+    │   └── system-prompt.txt
+    └── pom.xml
 ```
 
-## 部署
+## 环境要求
 
-### 前端部署
+| 环境 | 建议版本 | 用途 |
+| --- | --- | --- |
+| JDK | 21+ | 后端运行与构建 |
+| Maven | 3.6+ | 后端依赖管理 |
+| Node.js | 18+ | 前端开发环境 |
+| MySQL | 8.0+ | 主数据库 |
+| Redis | 6.x+ | 缓存、分布式能力、Session |
+| RabbitMQ | 3.x+ | 推荐缓存预热延时任务 |
+| Elasticsearch | 8.x | 中文分词相似度辅助能力 |
 
-```bash
-cd matchsystem-frontend
+## 后端启动
+
+进入后端目录：
+
+```powershell
+cd .\matchsystem-backend
+```
+
+初始化数据库：
+
+```powershell
+# 在 MySQL 中执行：
+# src\main\resources\sql\create_table.sql
+```
+
+准备配置：
+
+```powershell
+Copy-Item .\src\main\resources\application-template.yml .\src\main\resources\application.yml
+```
+
+然后修改 `application.yml` 中的 MySQL、Redis、RabbitMQ、DeepSeek 等配置。
+
+启动后端：
+
+```powershell
+mvn spring-boot:run
+```
+
+默认后端 API 地址：
+
+```text
+http://localhost:8080/api
+```
+
+Knife4j 文档地址：
+
+```text
+http://localhost:8080/api/doc.html
+```
+
+## 前端启动
+
+进入前端目录：
+
+```powershell
+cd .\matchsystem-frontend
+```
+
+安装依赖：
+
+```powershell
+npm install
+```
+
+启动开发服务：
+
+```powershell
+npm run dev
+```
+
+前端默认访问地址：
+
+```text
+http://localhost:5173
+```
+
+前端接口基础地址配置在：
+
+```text
+matchsystem-frontend/src/plugins/myAxios.ts
+```
+
+## 关键接口
+
+| 模块 | 接口 | 说明 |
+| --- | --- | --- |
+| 用户 | `POST /api/user/register` | 注册 |
+| 用户 | `POST /api/user/login` | 登录 |
+| 用户 | `POST /api/user/logout` | 退出登录 |
+| 用户 | `GET /api/user/current` | 获取当前登录用户 |
+| 用户 | `POST /api/user/update` | 更新个人资料 |
+| 匹配 | `GET /api/user/match` | 根据标签匹配用户，优先读取 Redis |
+| 匹配 | `GET /api/user/match/withoutRedis` | 跳过 Redis 读取，重新查库计算并写入缓存 |
+| 推荐 | `GET /api/user/recommend` | 推荐用户分页列表 |
+| 标签 | `GET /api/user/search/tags` | 根据标签搜索用户 |
+| 队伍 | `POST /api/team/add` | 创建队伍 |
+| 队伍 | `POST /api/team/update` | 更新队伍 |
+| 队伍 | `GET /api/team/list` | 查询队伍 |
+| 队伍 | `POST /api/team/join` | 加入队伍 |
+| 队伍 | `POST /api/team/quit` | 退出队伍 |
+| 队伍 | `POST /api/team/delete` | 解散队伍 |
+| 文件 | `POST /api/file/upload/avatar` | 上传头像 |
+
+## 匹配与缓存说明
+
+普通匹配接口 `GET /api/user/match` 会优先读取 Redis 缓存，缓存 key 形如：
+
+```text
+user:match:{userId}
+```
+
+当用户修改自己的标签后，前端会先调用 `POST /api/user/update` 完成资料更新；如果更新字段是 `tags`，再异步调用 `GET /api/user/match/withoutRedis?num=10`。
+
+`matchUsersWithoutRedis` 不读取旧缓存，会重新查询数据库、计算匹配结果，并覆盖 Redis 中的匹配缓存。这样用户保存标签时能立即得到成功反馈，缓存刷新在后台请求中完成。
+
+## 前端页面
+
+| 路由 | 页面 | 说明 |
+| --- | --- | --- |
+| `/` | `Index.vue` | 首页推荐与匹配模式 |
+| `/team` | `TeamPage.vue` | 队伍列表 |
+| `/team/add` | `TeamAddPage.vue` | 创建队伍 |
+| `/team/update` | `TeamUpdatePage.vue` | 更新队伍 |
+| `/team/chat` | `TeamChatPage.vue` | 队伍聊天室 |
+| `/search` | `SearchPage.vue` | 标签搜索 |
+| `/user/list` | `SearchResultPage.vue` | 搜索结果 |
+| `/user` | `UserPage.vue` | 我的页面 |
+| `/user/update` | `UserUpdatePage.vue` | 个人资料编辑 |
+| `/user/login` | `UserLoginPage.vue` | 登录 |
+| `/user/register` | `UserRegisterPage.vue` | 注册 |
+| `/user/team/join` | `UserTeamJoinPage.vue` | 我加入的队伍 |
+| `/user/team/create` | `UserTeamCreatePage.vue` | 我创建的队伍 |
+| `/ai/chat` | `AiChatPage.vue` | AI 编程助手 |
+
+## 构建部署
+
+前端构建：
+
+```powershell
+cd .\matchsystem-frontend
 npm run build
-# 将 dist/ 目录部署到 Nginx 或其他静态服务器
 ```
 
-### 后端部署
+构建产物位于：
 
-```bash
-cd matchsystem-backend
+```text
+matchsystem-frontend/dist
+```
+
+后端打包：
+
+```powershell
+cd .\matchsystem-backend
 mvn clean package
-java -jar target/matchsystem-0.0.1-SNAPSHOT.jar
 ```
 
-生产环境建议通过环境变量注入敏感配置，参考 `application-prod-template.yml`。
+运行 Jar：
+
+```powershell
+java -jar .\target\matchsystem-0.0.1-SNAPSHOT.jar
+```
+
+头像等上传文件默认保存在项目的 `uploads/` 目录。部署到服务器时，需要保证该目录可写，并配置静态资源访问路径。
 
 ## 常见问题
 
-### Q: 子模块克隆失败？
+### 修改标签后为什么匹配结果没有马上变化？
 
-A: 确保使用 `--recurse-submodules` 参数，或执行 `git submodule init && git submodule update`。
+普通 `/api/user/match` 会优先读取 Redis。标签更新成功后，需要调用 `/api/user/match/withoutRedis` 重新查库计算并刷新缓存。当前前端已经在标签保存成功后异步触发该刷新请求。
 
-### Q: RabbitMQ 连接失败？
+### WebSocket 连接失败怎么办？
 
-A: 需要启用延迟消息插件：`rabbitmq-plugins enable rabbitmq_delayed_message_exchange`。
+先确认后端服务已启动、登录态 Cookie 正常携带，并检查前端 WebSocket 地址是否和后端端口一致。若线上部署，还需要确认反向代理支持 WebSocket 升级。
 
-### Q: Redisson 初始化失败？
+### RabbitMQ 启动后缓存预热不工作怎么办？
 
-A: Redisson 固定使用 Redis DB 3，确保 Redis 允许访问该数据库。
+检查 RabbitMQ 地址、账号密码、交换机配置，以及延迟消息插件是否启用。推荐缓存预热依赖 RabbitMQ 延时任务。
 
-## 许可证
+### 头像上传后无法访问怎么办？
 
-MIT License
+确认后端上传目录存在且有写入权限，并检查静态资源映射是否指向实际的 `uploads/` 目录。
+

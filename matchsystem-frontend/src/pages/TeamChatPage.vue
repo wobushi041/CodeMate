@@ -38,11 +38,7 @@
       <van-field
           v-model="inputContent"
           class="composer-input"
-          type="textarea"
-          rows="2"
-          autosize
           maxlength="2048"
-          show-word-limit
           placeholder="输入消息"
       />
       <van-button
@@ -394,22 +390,35 @@ const createClientMessageId = () => {
 }
 
 .composer {
-  padding: 10px 12px;
+  padding: 8px 12px;
   background: var(--bg-panel);
   border-top: 1px solid var(--border-weak);
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 8px;
 }
 
 .composer-input {
   flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  box-sizing: border-box;
   border-radius: 6px;
   background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+}
+
+.composer-input :deep(.van-field__body) {
+  width: 100%;
 }
 
 .composer-input :deep(.van-field__control) {
+  height: 24px;
   color: var(--text-main);
+  line-height: 24px;
+  white-space: nowrap;
 }
 
 .composer-input :deep(.van-field__control::placeholder) {
@@ -418,7 +427,7 @@ const createClientMessageId = () => {
 
 .send-button {
   width: 72px;
-  height: 44px;
+  height: 40px;
   flex: 0 0 72px;
 }
 </style>
