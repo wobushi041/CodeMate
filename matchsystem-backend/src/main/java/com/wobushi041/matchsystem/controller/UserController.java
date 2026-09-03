@@ -175,6 +175,16 @@ public class UserController {
 
     }
 
+    @GetMapping("/match/withoutRedis")
+    public BaseResponse<List<User>> matchUsersWithoutRedis(@RequestParam(value = "num") long num, HttpServletRequest request) {
+        if (num <= 0 || num > 20) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "匹配人数必须在1到20之间");
+        }
+        User loginUserFromRequest = userService.getLoginUserFromRequest(request);
+        List<User> matchUsers = userService.matchUsersWithoutRedis(num, loginUserFromRequest);
+        return ResultUtils.success(matchUsers);
+    }
+
     /**
      * required设置为 false 后，表示该参数是可选的。如果前端请求中没有携带这个参数，Spring 会将方法参数绑定为 null（对于对象类型）或默认值，而不会报错
      * @param tagNameList

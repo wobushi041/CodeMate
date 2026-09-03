@@ -296,8 +296,22 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         if (cachedValue instanceof List) {
             return (List<User>) cachedValue;
         }
+        return queryAndCacheMatchUsers(num, loginUserId, bucket);
+    }
+
+    @Override
+    public List<User> matchUsersWithoutRedis(long num, User loginUser) {
+        Long loginUserId = loginUser.getId();
+        String redisKey = buildMatchUsersCacheKey(loginUserId);
+        RBucket<Object> bucket = redissonClient.getBucket(redisKey);
+        return queryAndCacheMatchUsers(num, loginUserId, bucket);
+    }
+
+    private List<User> queryAndCacheMatchUsers(long num, long loginUserId, RBucket<Object> bucket) {
+        User loginUser;
         loginUser = this.getById(loginUserId);
         if (loginUser == null || StringUtils.isBlank(loginUser.getTags())) {
+            bucket.delete();
             return Collections.emptyList();
         }
         // 初始化查询条件，确保用户的标签不为空
@@ -311,6 +325,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         Gson gson = new Gson();
         List<String> tagList = gson.fromJson(tags, new TypeToken<List<String>>(){}.getType());
         if (CollectionUtils.isEmpty(tagList)) {
+            bucket.delete();
             return Collections.emptyList();
         }
         // 准备用于存储用户与距离信息的列表
@@ -339,6 +354,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
                 .map(pair -> pair.getFirst().getId())  // 从配对中提取用户ID
                 .collect(Collectors.toList());
         if (CollectionUtils.isEmpty(userListVo)) {
+            bucket.delete();
             return Collections.emptyList();
         }
         // 根据ID重新查询用户信息，并进行脱敏处理
