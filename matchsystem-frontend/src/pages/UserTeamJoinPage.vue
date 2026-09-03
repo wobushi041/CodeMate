@@ -1,5 +1,5 @@
 <template>
-  <div id="teamPage">
+  <div id="teamPage" class="mall-page">
     <van-search v-model="searchText" placeholder="搜索队伍" @search="onSearch" />
     <team-card-list :teamList="teamList" />
     <van-empty v-if="teamList?.length < 1" description="数据为空"/>
@@ -51,7 +51,8 @@ const onSearch = (val) => {
 </script>
 
 <style scoped>
+/* 深色卡片列表在上边框处留出呼吸距离 */
 #teamPage {
-
+  padding-top: 4px;
 }
 </style>

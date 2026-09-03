@@ -149,8 +149,20 @@ const loadHistory = async () => {
   }
 };
 
+const getWebSocketUrl = () => {
+  const configuredUrl = import.meta.env.VITE_WS_BASE_URL;
+  if (configuredUrl) {
+    return configuredUrl;
+  }
+  if (import.meta.env.DEV) {
+    return "ws://localhost:8091/ws/chat";
+  }
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.hostname}:8091/ws/chat`;
+};
+
 const connectWebSocket = () => {
-  ws = new WebSocket("ws://localhost:8091/ws/chat");
+  ws = new WebSocket(getWebSocketUrl());
 
   ws.onopen = () => {
     connected.value = true;
@@ -183,9 +195,12 @@ const connectWebSocket = () => {
     Toast.fail("WebSocket 连接异常");
   };
 
-  ws.onclose = () => {
+  ws.onclose = (event) => {
     connected.value = false;
     joined.value = false;
+    if (!event.wasClean) {
+      Toast.fail(`WebSocket 连接失败(${event.code})`);
+    }
   };
 };
 
@@ -260,8 +275,12 @@ const createClientMessageId = () => {
 
 <style scoped>
 .team-chat-page {
-  min-height: calc(100vh - 96px);
-  background: #f5f7fb;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  background:
+    radial-gradient(900px 400px at 85% -10%, rgba(29, 144, 245, 0.12), transparent 60%),
+    var(--bg-page);
   display: flex;
   flex-direction: column;
 }
@@ -269,8 +288,8 @@ const createClientMessageId = () => {
 .chat-header {
   height: 58px;
   padding: 8px 14px;
-  background: #ffffff;
-  border-bottom: 1px solid #e8edf3;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-weak);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -279,7 +298,7 @@ const createClientMessageId = () => {
 
 .room-name {
   max-width: 220px;
-  color: #1f2937;
+  color: var(--text-main);
   font-size: 16px;
   font-weight: 600;
   line-height: 22px;
@@ -289,18 +308,18 @@ const createClientMessageId = () => {
 }
 
 .room-status {
-  color: #8793a5;
+  color: var(--text-light);
   font-size: 12px;
   line-height: 18px;
 }
 
 .room-status.online {
-  color: #07c160;
+  color: var(--color-wechat);
 }
 
 .message-list {
   flex: 1;
-  height: calc(100vh - 255px);
+  min-height: 0;
   padding: 14px 12px;
   overflow-y: auto;
 }
@@ -328,7 +347,7 @@ const createClientMessageId = () => {
   height: 36px;
   flex: 0 0 36px;
   border-radius: 50%;
-  background: #4f8cff;
+  background: var(--color-primary);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -338,7 +357,7 @@ const createClientMessageId = () => {
 }
 
 .message-row.self .avatar {
-  background: #07c160;
+  background: var(--color-wechat);
 }
 
 .message-main {
@@ -347,7 +366,7 @@ const createClientMessageId = () => {
 
 .message-meta {
   margin-bottom: 4px;
-  color: #8b97a8;
+  color: var(--text-light);
   display: flex;
   gap: 8px;
   font-size: 12px;
@@ -361,22 +380,23 @@ const createClientMessageId = () => {
 .message-bubble {
   padding: 9px 11px;
   border-radius: 6px;
-  background: #ffffff;
-  color: #1f2937;
+  background: var(--bg-elevated);
+  color: var(--text-main);
   font-size: 15px;
   line-height: 22px;
   word-break: break-word;
-  box-shadow: 0 1px 4px rgba(31, 41, 55, 0.06);
+  border: 1px solid var(--border-weak);
 }
 
 .message-row.self .message-bubble {
-  background: #dff6e8;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
 }
 
 .composer {
   padding: 10px 12px;
-  background: #ffffff;
-  border-top: 1px solid #e8edf3;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border-weak);
   display: flex;
   align-items: flex-end;
   gap: 8px;
@@ -385,7 +405,15 @@ const createClientMessageId = () => {
 .composer-input {
   flex: 1;
   border-radius: 6px;
-  background: #f5f7fb;
+  background: var(--bg-elevated);
+}
+
+.composer-input :deep(.van-field__control) {
+  color: var(--text-main);
+}
+
+.composer-input :deep(.van-field__control::placeholder) {
+  color: var(--text-placeholder);
 }
 
 .send-button {

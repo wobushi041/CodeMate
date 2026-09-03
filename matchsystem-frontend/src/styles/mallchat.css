@@ -1,0 +1,236 @@
+/*
+ * mallchat.css —— 借鉴 MallChatWeb(src/styles/base.css / main.css)深色视觉体系
+ * 约束:纯 CSS(项目未安装 sass),通过 main.ts 一条 import 引入。
+ * 原则:只换颜色与质感,不改任何组件结构/逻辑。
+ */
+:root {
+  /* ==== 配色变量(来源:MallChatWeb base.css) ==== */
+  --color-primary: #1d90f5; /* 主题蓝 */
+  --color-primary-dark: #2287e1; /* 主题蓝 hover */
+  --color-wechat: #2aae67; /* 微信绿(自方气泡/成功) */
+  --color-danger: #f5465a; /* 危险(退出/解散) */
+  --color-white: #fff;
+  --color-gold: #c59512;
+  --color-online: greenyellow;
+
+  /* 深色背景层级 */
+  --bg-page: #272a37; /* 页面底(同 --background-wrapper) */
+  --bg-panel: #323644; /* 面板/分组(同 --background-secondary) */
+  --bg-elevated: #383c4b; /* 卡片/悬浮(同 --background-2) */
+  --bg-hover: #484d5f; /* hover(同 --hover-bg-1) */
+  --bg-mask: rgba(255, 255, 255, 20%);
+  --bg-deep: rgba(0, 0, 0, 20%);
+
+  /* 文字 */
+  --text-main: #fff;
+  --text-gray: #666;
+  --text-light: #999;
+  --text-light-1: #eee;
+  --text-placeholder: #a8abb2;
+
+  /* 边框 */
+  --border-weak: rgba(255, 255, 255, 8%);
+  --border-strong: rgba(255, 255, 255, 14%);
+
+  /* ==== 覆盖 Vant 3.4.8 全局主题(全部在此统一压暗) ==== */
+  --van-background-color: var(--bg-page);
+  --van-background-color-light: var(--bg-panel);
+  --van-border-color: var(--border-weak);
+  --van-active-color: var(--bg-mask);
+
+  /* 顶部导航 */
+  --van-nav-bar-background-color: var(--bg-panel);
+  --van-nav-bar-icon-color: var(--text-light-1);
+  --van-nav-bar-text-color: var(--text-light-1);
+  --van-nav-bar-title-text-color: var(--text-main);
+
+  /* 底部标签栏 */
+  --van-tabbar-background-color: var(--bg-panel);
+  --van-tabbar-item-text-color: var(--text-light);
+  --van-tabbar-item-active-color: var(--color-primary);
+  --van-tabbar-item-active-background-color: transparent;
+
+  /* 单元格 / 分组(去白底关键) */
+  --van-cell-background-color: var(--bg-panel);
+  --van-cell-text-color: var(--text-main);
+  --van-cell-value-color: var(--text-light-1);
+  --van-cell-label-color: var(--text-light);
+  --van-cell-border-color: var(--border-weak);
+  --van-cell-group-background-color: var(--bg-panel);
+
+  /* 按钮 */
+  --van-button-primary-background-color: var(--color-primary);
+  --van-button-primary-border-color: var(--color-primary);
+  --van-button-primary-color: #fff;
+  --van-button-danger-background-color: var(--color-danger);
+  --van-button-danger-border-color: var(--color-danger);
+  --van-button-danger-color: #fff;
+  --van-button-default-background-color: rgba(255, 255, 255, 6%);
+  --van-button-default-border-color: var(--border-strong);
+  --van-button-default-color: var(--text-light-1);
+  --van-button-plain-background-color: transparent;
+  --van-button-border-radius: 8px;
+
+  /* 卡片 */
+  --van-card-background-color: var(--bg-elevated);
+  --van-card-text-color: var(--text-main);
+  --van-card-desc-color: var(--text-light);
+
+  /* 搜索 */
+  --van-search-background-color: var(--bg-page);
+  --van-search-content-background-color: var(--bg-panel);
+  --van-search-left-icon-color: var(--text-light);
+  --van-search-action-text-color: var(--color-primary);
+
+  /* 表单输入 */
+  --van-field-input-text-color: var(--text-main);
+  --van-field-label-color: var(--text-light);
+  --van-field-placeholder-text-color: var(--text-placeholder);
+  --van-field-clear-icon-color: var(--text-light);
+
+  /* 弹层 / 弹窗 */
+  --van-popup-background-color: var(--bg-panel);
+  --van-dialog-background-color: var(--bg-elevated);
+  --van-dialog-border-radius: 12px;
+  --van-dialog-confirm-button-text-color: var(--color-primary);
+  --van-dialog-has-title-message-text-color: var(--text-light-1);
+  --van-dialog-header-font-weight: 500;
+  --van-picker-background-color: var(--bg-panel);
+  --van-picker-option-text-color: var(--text-light-1);
+  --van-picker-cancel-action-color: var(--text-light);
+  --van-picker-confirm-action-color: var(--color-primary);
+  --van-overlay-background-color: rgba(0, 0, 0, 60%);
+
+  /* 开关 / 单选 / 步进器 */
+  --van-switch-on-background-color: var(--color-primary);
+  --van-switch-background-color: var(--bg-hover);
+  --van-switch-node-background-color: #fff;
+  --van-radio-checked-icon-color: var(--color-primary);
+  --van-radio-label-color: var(--text-main);
+  --van-stepper-background-color: var(--bg-elevated);
+  --van-stepper-input-text-color: var(--text-main);
+  --van-stepper-button-icon-color: var(--text-light-1);
+  --van-stepper-input-disabled-text-color: var(--text-light);
+
+  /* tabs */
+  --van-tabs-nav-background-color: var(--bg-panel);
+  --van-tabs-bottom-bar-color: var(--color-primary);
+  --van-tab-text-color: var(--text-light);
+  --van-tab-active-text-color: var(--color-primary);
+  --van-tab-disabled-text-color: var(--text-gray);
+
+  /* tree-select(搜索页标签) */
+  --van-tree-select-nav-background-color: var(--bg-panel);
+  --van-tree-select-content-background-color: var(--bg-elevated);
+  --van-tree-select-item-active-color: var(--text-main);
+  --van-tree-select-item-disabled-color: var(--text-gray);
+
+  /* 标签 chip */
+  --van-tag-primary-color: var(--color-primary);
+  --van-tag-plain-background-color: transparent;
+  --van-tag-text-color: #fff;
+
+  /* 骨架屏 */
+  --van-skeleton-row-background-color: var(--bg-elevated);
+  --van-skeleton-avatar-background-color: var(--bg-elevated);
+  --van-skeleton-title-width: 50%;
+
+  /* 空态 / 分隔线 / 加载 */
+  --van-empty-description-color: var(--text-light);
+  --van-divider-text-color: var(--text-light);
+  --van-divider-border-color: var(--border-weak);
+  --van-loading-text-color: var(--text-light);
+}
+
+/* ==== 页面底色:仿 MallChatWeb app-wrapper 的深色渐变(纯 CSS,无图片) ==== */
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  color: var(--text-main);
+  background:
+    radial-gradient(1200px 600px at 85% -10%, rgba(29, 144, 245, 0.16), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(42, 174, 103, 0.1), transparent 55%),
+    linear-gradient(160deg, #232633 0%, #272a37 45%, #1e212c 100%);
+  background-attachment: fixed;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizelegibility;
+}
+
+#app {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--text-main);
+}
+
+/* ==== 通用工具类(对齐 MallChatWeb base.css/main.css) ==== */
+.mall-page {
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: 0 0 12px;
+  color: var(--text-main);
+}
+
+/* 表单卡片 / 分组卡片的统一质感 */
+.mall-glass {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-weak);
+  border-radius: 12px;
+}
+
+.mall-cell {
+  background-color: var(--bg-panel);
+}
+
+/* 一行字超出省略 */
+.ellipsis-1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ellipsis-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-line-clamp: 2;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 细滚动条(对齐 MallChatWeb main.css) */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--text-gray);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--bg-hover);
+}

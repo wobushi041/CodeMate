@@ -1,5 +1,5 @@
 <template>
-  <div class="chat-container">
+  <div class="chat-container mall-chat">
     <!-- 消息列表 -->
     <div class="message-list" ref="messageListRef">
       <div v-for="(msg, index) in messages" :key="index"
@@ -7,19 +7,11 @@
         <div class="message-avatar">
           <van-image v-if="msg.role === 'user'" round width="32" height="32"
                      :src="user?.avatarUrl || 'https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg'" />
-          <van-icon v-else name="chat" size="32" color="#1989fa" />
+          <van-icon v-else name="chat" size="32" color="#1d90f5" />
         </div>
-        <div class="message-bubble">
-          <div class="message-text" v-html="formatMessage(msg.content)"></div>
-        </div>
-      </div>
-      <!-- 加载中 -->
-      <div v-if="loading" class="message message-ai">
-        <div class="message-avatar">
-          <van-icon name="chat" size="32" color="#1989fa" />
-        </div>
-        <div class="message-bubble">
-          <van-loading size="16" />
+        <div class="message-bubble" :class="{ 'message-bubble-loading': isStreamingAiMessage(msg, index) }">
+          <van-loading v-if="isStreamingAiMessage(msg, index)" size="16" />
+          <div v-else class="message-text" v-html="formatMessage(msg.content)"></div>
         </div>
       </div>
     </div>
@@ -38,6 +30,8 @@
 <script setup lang="ts">
 import {ref, onMounted, nextTick} from 'vue';
 import {useRoute} from 'vue-router';
+import DOMPurify from 'dompurify';
+import {marked, Renderer} from 'marked';
 import {getCurrentUser} from '../services/user';
 import type {UserType} from '../models/user';
 
@@ -53,6 +47,40 @@ const loading = ref(false);
 const messageListRef = ref<HTMLElement>();
 const route = useRoute();
 
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+});
+
+const markdownRenderer = new Renderer();
+
+const escapeHtml = (text: string) => {
+  return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+};
+
+const isCommandLikeCode = (code: string) => {
+  return /^(npm|pnpm|yarn|git|mvn|gradle|java|python|pip|docker|kubectl)\s+/i.test(code.trim())
+      || /[=;{}\[\]|$<>]/.test(code);
+};
+
+markdownRenderer.codespan = (code) => {
+  const text = code.trim();
+  const escaped = escapeHtml(text);
+  if (text.length <= 32 && !isCommandLikeCode(text)) {
+    return `<span class="tech-token">${escaped}</span>`;
+  }
+  return `<code>${escaped}</code>`;
+};
+
+marked.use({
+  renderer: markdownRenderer,
+});
+
 // 滚动到底部
 const scrollToBottom = () => {
   nextTick(() => {
@@ -62,12 +90,43 @@ const scrollToBottom = () => {
   });
 };
 
-// 格式化消息（简单 markdown）
+const normalizeMarkdown = (text: string) => {
+  const source = (text || '').replace(/\\n/g, '\n').replace(/\r\n/g, '\n');
+  const orderedListMarker = String.raw`\d{1,2}[.．、](?!\d)`;
+  const chineseListMarker = String.raw`[一二三四五六七八九十]+[、.．]`;
+  return source
+      .split(/(```[\s\S]*?```)/g)
+      .map((part) => {
+        if (part.startsWith('```')) {
+          return part;
+        }
+        return part
+            .replace(/\*\*(?=[^\n*]{1,48}\n\s*[-*+]\s+)/g, '')
+            .replace(/(\n\s*[-*+]\s+[^\n*]{1,80})\*\*/g, '$1')
+            .replace(/([^\n])\s*(#{1,6}\s+)/g, '$1\n\n$2')
+            .replace(/\s*[-–—]{2,}\s*([^-\n]{2,24}[：:])\s*/g, '\n\n**$1**\n\n')
+            .replace(/([:：。！？!?])\s*[-–—]\s*(?=["“\u4e00-\u9fa5A-Za-z0-9])/g, '$1\n\n- ')
+            .replace(/(["”'）?？])\s*[-–—]\s*(?=["“\u4e00-\u9fa5A-Za-z0-9])/g, '$1\n- ')
+            .replace(new RegExp(`([:：。！？!?])\\s*(?=${orderedListMarker}\\s*)`, 'g'), '$1\n\n')
+            .replace(new RegExp(`([^\\n\\d])\\s*(${orderedListMarker})\\s*`, 'g'), '$1\n$2 ')
+            .replace(new RegExp(`(^|\\n)(${orderedListMarker})\\s*`, 'g'), '$1$2 ')
+            .replace(/([^\n])\s+([-*+]\s+)/g, '$1\n$2')
+            .replace(new RegExp(`([^\\n])\\s*(${chineseListMarker})\\s*`, 'g'), '$1\n$2 ')
+            .replace(/(^|\s)\*\*(?=\S)(?![\s\S]*\*\*)/g, '$1');
+      })
+      .join('');
+};
+
+// 渲染 Markdown，并清理 v-html 内容。
 const formatMessage = (text: string) => {
-  return text
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/`(.*?)`/g, '<code>$1</code>')
-      .replace(/\n/g, '<br>');
+  return DOMPurify.sanitize(marked.parse(normalizeMarkdown(text)));
+};
+
+const isStreamingAiMessage = (message: ChatMessage, index: number) => {
+  return loading.value
+      && message.role === 'ai'
+      && index === messages.value.length - 1
+      && !message.content;
 };
 
 // 发送消息并接收 SSE 流式响应
@@ -138,20 +197,26 @@ onMounted(async () => {
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  background: #f5f5f5;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg-page);
 }
 
 .message-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 12px;
+  padding: 14px 12px 18px;
+  background:
+    radial-gradient(900px 400px at 85% -10%, rgba(29, 144, 245, 0.12), transparent 60%),
+    var(--bg-page);
 }
 
 .message {
   display: flex;
-  margin-bottom: 12px;
-  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+  gap: 10px;
 }
 
 .message-user {
@@ -160,41 +225,185 @@ onMounted(async () => {
 
 .message-bubble {
   max-width: 75%;
-  padding: 10px 14px;
+  box-sizing: border-box;
+  padding: 11px 14px;
   border-radius: 12px;
   font-size: 14px;
-  line-height: 1.6;
-  word-break: break-word;
+  line-height: 1.7;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.message-text {
+  white-space: normal;
+  font-weight: 400;
 }
 
 .message-user .message-bubble {
-  background: #1989fa;
+  max-width: 68%;
+  background: var(--color-primary);
   color: white;
 }
 
 .message-ai .message-bubble {
-  background: white;
-  color: #333;
+  max-width: min(calc(100% - 46px), 640px);
+  background: var(--bg-elevated);
+  color: var(--text-main);
+  border: 1px solid var(--border-weak);
+}
+
+.message-bubble-loading {
+  min-width: 52px;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .message-ai .message-bubble :deep(code) {
-  background: #f0f0f0;
-  padding: 1px 4px;
+  display: inline;
+  padding: 1px 3px;
+  color: #9fd0ff;
+  background: rgba(29, 144, 245, 0.1);
   border-radius: 3px;
+  font-family: Consolas, Monaco, 'Courier New', monospace;
   font-size: 13px;
+  white-space: normal;
+}
+
+.message-text :deep(.tech-token) {
+  color: #9fd0ff;
+  font-weight: 500;
+  font-family: inherit;
+  white-space: normal;
+}
+
+.message-text :deep(p) {
+  margin: 0 0 10px;
+}
+
+.message-text :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.message-text :deep(ul),
+.message-text :deep(ol) {
+  margin: 8px 0 12px;
+  padding-left: 22px;
+  list-style-position: outside;
+}
+
+.message-text :deep(ul) {
+  list-style-type: disc;
+}
+
+.message-text :deep(ol) {
+  list-style-type: decimal;
+}
+
+.message-text :deep(li) {
+  margin: 5px 0;
+  padding-left: 2px;
+}
+
+.message-text :deep(li::marker) {
+  color: #7cc0ff;
+  font-weight: 600;
+}
+
+.message-text :deep(h1),
+.message-text :deep(h2),
+.message-text :deep(h3),
+.message-text :deep(h4) {
+  margin: 12px 0 8px;
+  color: var(--text-main);
+  font-size: 15px;
+  line-height: 1.45;
+  font-weight: 700;
+}
+
+.message-text :deep(h1:first-child),
+.message-text :deep(h2:first-child),
+.message-text :deep(h3:first-child),
+.message-text :deep(h4:first-child) {
+  margin-top: 0;
+}
+
+.message-text :deep(blockquote) {
+  margin: 8px 0;
+  padding: 6px 10px;
+  color: var(--text-light-1);
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 4px;
+}
+
+.message-text :deep(pre) {
+  box-sizing: border-box;
+  max-width: 100%;
+  margin: 10px 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-weak);
+  border-radius: 6px;
+}
+
+.message-text :deep(pre code) {
+  padding: 0;
+  background: transparent;
+  color: var(--text-light-1);
+  white-space: pre;
+}
+
+.message-text :deep(a) {
+  color: #7cc0ff;
+  text-decoration: none;
+}
+
+.message-text :deep(strong) {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.message-text :deep(table) {
+  display: block;
+  max-width: 100%;
+  margin: 10px 0;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.message-text :deep(th),
+.message-text :deep(td) {
+  padding: 6px 8px;
+  border: 1px solid var(--border-weak);
+}
+
+.message-text :deep(th) {
+  color: var(--text-main);
+  background: var(--bg-panel);
 }
 
 .input-bar {
   display: flex;
   align-items: center;
   padding: 8px 12px;
-  background: white;
-  border-top: 1px solid #eee;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border-weak);
   gap: 8px;
 }
 
 .input-bar .van-field {
   flex: 1;
+}
+
+.input-bar :deep(.van-field__control) {
+  color: var(--text-main);
+}
+
+.input-bar :deep(.van-field__control::placeholder) {
+  color: var(--text-placeholder);
 }
 
 .message-avatar {

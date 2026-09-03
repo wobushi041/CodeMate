@@ -1,0 +1,7 @@
+/*
+ * tailwind.css——Tailwind 指令入口
+ * 已关闭 preflight(见 tailwind.config.js),只产出用到的工具类,不影响 Vant 组件。
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

@@ -1,6 +1,7 @@
 <template>
   <div class="logout-button-wrap">
     <van-button
+      class="mall-logout-btn"
       block
       plain
       hairline
@@ -39,6 +40,14 @@ const handleLogout = async () => {
 
 <style scoped>
 .logout-button-wrap {
-  margin: 12px 0 16px;
+  margin: 12px 16px 16px;
+}
+
+.mall-logout-btn {
+  height: 44px;
+  color: #ff8b97 !important;
+  background: rgba(245, 70, 90, 0.12) !important;
+  border-color: rgba(245, 70, 90, 0.4) !important;
+  border-radius: 12px;
 }
 </style>

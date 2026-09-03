@@ -1,6 +1,8 @@
 <template>
-  <user-card-list :user-list="userList" :loading="loading" />
-  <van-empty v-if="!userList || userList.length < 1" description="搜索结果为空" />
+  <div class="mall-page search-result-page">
+    <user-card-list :user-list="userList" :loading="loading" />
+    <van-empty v-if="!userList || userList.length < 1" description="搜索结果为空" />
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -68,5 +70,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-
+.search-result-page {
+  padding-top: 8px;
+}
 </style>
