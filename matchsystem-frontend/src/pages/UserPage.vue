@@ -1,10 +1,6 @@
 <template>
-  <section class="profile-page">
-    <header class="profile-header">
-      <h1>个人信息</h1>
-    </header>
-
-    <main class="profile-content">
+  <SubPageLayout title="个人信息" :show-back="false" :has-tabbar="true">
+    <div class="profile-content">
       <section v-if="user" class="profile-summary">
         <div class="profile-avatar">
           <img v-if="user.avatarUrl" :src="user.avatarUrl" :alt="user.username || user.userAccount" />
@@ -27,11 +23,11 @@
 
       <section v-if="user" class="profile-menu" aria-label="个人功能">
         <button
-            v-for="item in menuItems"
-            :key="item.path"
-            class="profile-menu__item"
-            type="button"
-            @click="router.push(item.path)"
+          v-for="item in menuItems"
+          :key="item.path"
+          class="profile-menu__item"
+          type="button"
+          @click="router.push(item.path)"
         >
           <span>{{ item.label }}</span>
           <ChevronRight :size="20" :stroke-width="1.8" />
@@ -41,25 +37,26 @@
       <div v-if="user" class="profile-logout">
         <LogoutButton />
       </div>
-    </main>
-  </section>
+    </div>
+  </SubPageLayout>
 </template>
 
 <script setup lang="ts">
-import {computed, onMounted, ref} from 'vue';
-import {useRouter} from 'vue-router';
-import {ChevronRight, Image as ImageIcon} from 'lucide-vue-next';
-import {getCurrentUser} from '../services/user';
-import type {UserType} from '../models/user';
+import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { ChevronRight, Image as ImageIcon } from 'lucide-vue-next';
+import SubPageLayout from '../components/SubPageLayout.vue';
+import { getCurrentUser } from '../services/user';
+import type { UserType } from '../models/user';
 import LogoutButton from '../components/LogoutButton.vue';
 
 const router = useRouter();
 const user = ref<UserType | null>(null);
 
 const menuItems = [
-  {label: '编辑个人信息', path: '/user/update'},
-  {label: '我创建的队伍', path: '/user/team/create'},
-  {label: '我加入的队伍', path: '/user/team/join'},
+  { label: '编辑个人信息', path: '/user/update' },
+  { label: '我创建的队伍', path: '/user/team/create' },
+  { label: '我加入的队伍', path: '/user/team/join' },
 ];
 
 const normalizeTags = (rawTags: unknown): string[] => {
@@ -94,49 +91,11 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.profile-page {
-  box-sizing: border-box;
-  display: flex;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  flex-direction: column;
-  overflow: hidden;
-  color: #f8fafc;
-  background: #0b1120;
-  font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
-}
-
-.profile-header {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  min-height: 84px;
-  padding: 22px 16px 12px;
-}
-
-.profile-header h1 {
-  margin: 0;
-  color: #f8fafc;
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 28px;
-  letter-spacing: -0.025em;
-}
-
 .profile-content {
   box-sizing: border-box;
-  flex: 1;
-  min-height: 0;
+  width: 100%;
   padding: 28px 16px 48px;
-  overflow-y: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.profile-content::-webkit-scrollbar {
-  display: none;
+  overflow-x: hidden;
 }
 
 .profile-summary {

@@ -1,27 +1,23 @@
 <template>
-  <section class="ai-chat-page">
-    <header class="ai-chat-header">
-      <h1>AI 编程助手</h1>
-    </header>
-
-    <main ref="messageListRef" class="message-list">
+  <SubPageLayout ref="layoutRef" title="AI 编程助手" :show-back="false" :has-tabbar="true">
+    <div class="message-list">
       <article
-          v-for="(message, index) in messages"
-          :key="index"
-          :class="['message-row', message.role === 'user' ? 'message-row--user' : 'message-row--ai']"
+        v-for="(message, index) in messages"
+        :key="index"
+        :class="['message-row', message.role === 'user' ? 'message-row--user' : 'message-row--ai']"
       >
         <template v-if="message.role === 'ai'">
           <div class="ai-message-wrap">
             <BotMessageSquare class="ai-message-icon" :size="32" :stroke-width="2" />
             <div
-                class="message-bubble ai-message-bubble"
-                :class="{ 'message-bubble--loading': isStreamingAiMessage(message, index) }"
+              class="message-bubble ai-message-bubble"
+              :class="{ 'message-bubble--loading': isStreamingAiMessage(message, index) }"
             >
               <LoaderCircle
-                  v-if="isStreamingAiMessage(message, index)"
-                  class="loading-icon"
-                  :size="22"
-                  :stroke-width="2"
+                v-if="isStreamingAiMessage(message, index)"
+                class="loading-icon"
+                :size="22"
+                :stroke-width="2"
               />
               <div v-else class="message-text" v-html="formatMessage(message.content)"></div>
             </div>
@@ -41,41 +37,42 @@
           <img class="user-avatar" :src="userAvatar" alt="用户头像" />
         </template>
       </article>
-    </main>
+    </div>
 
-    <div class="input-area">
+    <template #bottom>
       <div class="input-shell">
         <input
-            v-model="inputText"
-            class="message-input"
-            type="text"
-            placeholder="输入你的问题..."
-            :disabled="loading"
-            @keyup.enter="sendMessage"
+          v-model="inputText"
+          class="message-input"
+          type="text"
+          placeholder="输入你的问题..."
+          :disabled="loading"
+          @keyup.enter="sendMessage"
         />
         <button
-            class="send-button"
-            type="button"
-            aria-label="发送消息"
-            :disabled="loading || !inputText.trim()"
-            @click="sendMessage"
+          class="send-button"
+          type="button"
+          aria-label="发送消息"
+          :disabled="loading || !inputText.trim()"
+          @click="sendMessage"
         >
           <LoaderCircle v-if="loading" class="loading-icon" :size="21" :stroke-width="2" />
           <Send v-else :size="21" :stroke-width="2.2" />
         </button>
       </div>
-    </div>
-  </section>
+    </template>
+  </SubPageLayout>
 </template>
 
 <script setup lang="ts">
-import {computed, ref, onMounted, nextTick} from 'vue';
-import {useRoute} from 'vue-router';
+import { computed, ref, onMounted, nextTick } from 'vue';
+import { useRoute } from 'vue-router';
 import DOMPurify from 'dompurify';
-import {marked, Renderer} from 'marked';
-import {BotMessageSquare, LoaderCircle, Send} from 'lucide-vue-next';
-import {getCurrentUser} from '../services/user';
-import type {UserType} from '../models/user';
+import { marked, Renderer } from 'marked';
+import { BotMessageSquare, LoaderCircle, Send } from 'lucide-vue-next';
+import SubPageLayout from '../components/SubPageLayout.vue';
+import { getCurrentUser } from '../services/user';
+import type { UserType } from '../models/user';
 
 interface ChatMessage {
   role: 'user' | 'ai';
@@ -87,9 +84,11 @@ const user = ref<UserType | null>(null);
 const messages = ref<ChatMessage[]>([]);
 const inputText = ref('');
 const loading = ref(false);
-const messageListRef = ref<HTMLElement>();
+const layoutRef = ref<InstanceType<typeof SubPageLayout> | null>(null);
 const route = useRoute();
-const userAvatar = computed(() => user.value?.avatarUrl || 'https://api.dicebear.com/8.x/avataaars/svg?seed=Aneka&backgroundColor=a78bfa');
+const userAvatar = computed(
+  () => user.value?.avatarUrl || 'https://api.dicebear.com/8.x/avataaars/svg?seed=Aneka&backgroundColor=a78bfa'
+);
 
 marked.setOptions({
   breaks: true,
@@ -100,16 +99,18 @@ const markdownRenderer = new Renderer();
 
 const escapeHtml = (text: string) => {
   return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 };
 
 const isCommandLikeCode = (code: string) => {
-  return /^(npm|pnpm|yarn|git|mvn|gradle|java|python|pip|docker|kubectl)\s+/i.test(code.trim())
-      || /[=;{}\[\]|$<>]/.test(code);
+  return (
+    /^(npm|pnpm|yarn|git|mvn|gradle|java|python|pip|docker|kubectl)\s+/i.test(code.trim()) ||
+    /[=;{}\[\]|$<>]/.test(code)
+  );
 };
 
 markdownRenderer.codespan = (code) => {
@@ -128,9 +129,7 @@ marked.use({
 // 滚动到底部
 const scrollToBottom = () => {
   nextTick(() => {
-    if (messageListRef.value) {
-      messageListRef.value.scrollTop = messageListRef.value.scrollHeight;
-    }
+    layoutRef.value?.scrollToBottom();
   });
 };
 
@@ -139,26 +138,26 @@ const normalizeMarkdown = (text: string) => {
   const orderedListMarker = String.raw`\d{1,2}[.．、](?!\d)`;
   const chineseListMarker = String.raw`[一二三四五六七八九十]+[、.．]`;
   return source
-      .split(/(```[\s\S]*?```)/g)
-      .map((part) => {
-        if (part.startsWith('```')) {
-          return part;
-        }
-        return part
-            .replace(/\*\*(?=[^\n*]{1,48}\n\s*[-*+]\s+)/g, '')
-            .replace(/(\n\s*[-*+]\s+[^\n*]{1,80})\*\*/g, '$1')
-            .replace(/([^\n])\s*(#{1,6}\s+)/g, '$1\n\n$2')
-            .replace(/\s*[-–—]{2,}\s*([^-\n]{2,24}[：:])\s*/g, '\n\n**$1**\n\n')
-            .replace(/([:：。！？!?])\s*[-–—]\s*(?=["“\u4e00-\u9fa5A-Za-z0-9])/g, '$1\n\n- ')
-            .replace(/(["”'）?？])\s*[-–—]\s*(?=["“\u4e00-\u9fa5A-Za-z0-9])/g, '$1\n- ')
-            .replace(new RegExp(`([:：。！？!?])\\s*(?=${orderedListMarker}\\s*)`, 'g'), '$1\n\n')
-            .replace(new RegExp(`([^\\n\\d])\\s*(${orderedListMarker})\\s*`, 'g'), '$1\n$2 ')
-            .replace(new RegExp(`(^|\\n)(${orderedListMarker})\\s*`, 'g'), '$1$2 ')
-            .replace(/([^\n])\s+([-*+]\s+)/g, '$1\n$2')
-            .replace(new RegExp(`([^\\n])\\s*(${chineseListMarker})\\s*`, 'g'), '$1\n$2 ')
-            .replace(/(^|\s)\*\*(?=\S)(?![\s\S]*\*\*)/g, '$1');
-      })
-      .join('');
+    .split(/(```[\s\S]*?```)/g)
+    .map((part) => {
+      if (part.startsWith('```')) {
+        return part;
+      }
+      return part
+        .replace(/\*\*(?=[^\n*]{1,48}\n\s*[-*+]\s+)/g, '')
+        .replace(/(\n\s*[-*+]\s+[^\n*]{1,80})\*\*/g, '$1')
+        .replace(/([^\n])\s*(#{1,6}\s+)/g, '$1\n\n$2')
+        .replace(/\s*[-–—]{2,}\s*([^-\n]{2,24}[：:])\s*/g, '\n\n**$1**\n\n')
+        .replace(/([:：。！？!?])\s*[-–—]\s*(?=["“\u4e00-\u9fa5A-Za-z0-9])/g, '$1\n\n- ')
+        .replace(/(["”'）?？])\s*[-–—]\s*(?=["“\u4e00-\u9fa5A-Za-z0-9])/g, '$1\n- ')
+        .replace(new RegExp(`([:：。！？!?])\\s*(?=${orderedListMarker}\\s*)`, 'g'), '$1\n\n')
+        .replace(new RegExp(`([^\\n\\d])\\s*(${orderedListMarker})\\s*`, 'g'), '$1\n$2 ')
+        .replace(new RegExp(`(^|\\n)(${orderedListMarker})\\s*`, 'g'), '$1$2 ')
+        .replace(/([^\n])\s+([-*+]\s+)/g, '$1\n$2')
+        .replace(new RegExp(`([^\\n])\\s*(${chineseListMarker})\\s*`, 'g'), '$1\n$2 ')
+        .replace(/(^|\s)\*\*(?=\S)(?![\s\S]*\*\*)/g, '$1');
+    })
+    .join('');
 };
 
 // 渲染 Markdown，并清理 v-html 内容。
@@ -167,10 +166,7 @@ const formatMessage = (text: string) => {
 };
 
 const isStreamingAiMessage = (message: ChatMessage, index: number) => {
-  return loading.value
-      && message.role === 'ai'
-      && index === messages.value.length - 1
-      && !message.content;
+  return loading.value && message.role === 'ai' && index === messages.value.length - 1 && !message.content;
 };
 
 const formatMessageTime = (createdAt: number) => {
@@ -180,21 +176,22 @@ const formatMessageTime = (createdAt: number) => {
     hour12: false,
   });
 };
+
 // 发送消息并接收 SSE 流式响应
 // silent=true 时不显示用户消息（用于隐式触发问候）
 const sendAndStream = async (message: string, silent = false) => {
   loading.value = true;
   if (!silent) {
-    messages.value.push({role: 'user', content: message, createdAt: Date.now()});
+    messages.value.push({ role: 'user', content: message, createdAt: Date.now() });
   }
-  messages.value.push({role: 'ai', content: '', createdAt: Date.now()});
+  messages.value.push({ role: 'ai', content: '', createdAt: Date.now() });
   scrollToBottom();
 
   try {
     const baseUrl = import.meta.env.DEV ? 'http://localhost:8080/api' : '';
     const url = `${baseUrl}/ai/chat?message=${encodeURIComponent(message)}`;
 
-    const response = await fetch(url, {credentials: 'include'});
+    const response = await fetch(url, { credentials: 'include' });
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -205,7 +202,7 @@ const sendAndStream = async (message: string, silent = false) => {
     let aiMessage = '';
 
     while (true) {
-      const {done, value} = await reader.read();
+      const { done, value } = await reader.read();
       if (done) break;
 
       const chunk = decoder.decode(value);
@@ -245,52 +242,11 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.ai-chat-page {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-  color: #f8fafc;
-  background: #0b1120;
-  font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
-}
-
-.ai-chat-header {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  min-height: 84px;
-  padding: 22px 16px 12px;
-  background: #0b1120;
-}
-
-.ai-chat-header h1 {
-  margin: 0;
-  color: #f8fafc;
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 28px;
-  letter-spacing: -0.025em;
-}
-
 .message-list {
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 28px 16px 126px;
-  background: #0b1120;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.message-list::-webkit-scrollbar {
-  display: none;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 20px 16px 16px;
+  overflow-x: hidden;
 }
 
 .message-row {
@@ -553,16 +509,6 @@ onMounted(async () => {
   color: #030712;
 }
 
-.input-area {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 5;
-  padding: 28px 16px 22px;
-  background: linear-gradient(to top, #0b1120 65%, rgba(11, 17, 32, 0));
-}
-
 .input-shell {
   display: flex;
   align-items: center;
@@ -647,14 +593,5 @@ onMounted(async () => {
     padding-right: 20px;
     padding-left: 22px;
   }
-
-  .input-area {
-    padding-right: 12px;
-    padding-left: 12px;
-  }
 }
 </style>
-
-
-
-
