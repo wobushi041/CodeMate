@@ -68,3 +68,35 @@ create table if not exists chat_message
     isDelete        tinyint  default 0                 not null comment '是否删除'
 )
     comment = '聊天消息';
+
+create table if not exists private_chat_session
+(
+    id              bigint auto_increment comment '会话id'
+        primary key,
+    user1Id         bigint                             not null comment '用户1 id (较小值)',
+    user2Id         bigint                             not null comment '用户2 id (较大值)',
+    lastMessage     varchar(2048)                      null comment '最后一条消息摘要',
+    lastMessageTime datetime                           null comment '最后消息时间',
+    createTime      datetime default CURRENT_TIMESTAMP null comment '创建时间',
+    updateTime      datetime default CURRENT_TIMESTAMP null on update CURRENT_TIMESTAMP comment '更新时间',
+    isDelete        tinyint  default 0                 not null comment '是否删除',
+    constraint uk_users
+        unique (user1Id, user2Id)
+)
+    comment = '单人私聊会话';
+
+create table if not exists private_chat_message
+(
+    id              bigint auto_increment comment '消息id'
+        primary key,
+    sessionId       bigint                             not null comment '所属会话id',
+    clientMessageId varchar(64)                        null comment '客户端消息防重id',
+    fromUserId      bigint                             not null comment '发送者id',
+    toUserId        bigint                             not null comment '接收者id',
+    content         varchar(2048)                      not null comment '消息内容',
+    isRead          tinyint  default 0                 not null comment '是否已读 0-未读 1-已读',
+    createTime      datetime default CURRENT_TIMESTAMP null comment '发送时间',
+    isDelete        tinyint  default 0                 not null comment '是否删除'
+)
+    comment = '单人私聊消息';
+
