@@ -34,9 +34,14 @@ public class ChatConnectionHandler extends SimpleChannelInboundHandler<TextWebSo
     private final ChatChannelManager chatChannelManager;
 
     /**
-     * 聊天室业务层接口
+     * 聊天室业务层接口 (队伍群聊)
      */
     private final ChatRoomService chatRoomService;
+
+    /**
+     * 单人私聊业务层接口
+     */
+    private final com.wobushi041.matchsystem.service.PrivateChatService privateChatService;
 
     /**
      * Jackson JSON 序列化与反序列化工具
@@ -47,7 +52,7 @@ public class ChatConnectionHandler extends SimpleChannelInboundHandler<TextWebSo
      * 捕获并处理用户自定义事件
      *
      * 当接收到协议握手完成事件 HandshakeComplete 时，
-     * 读取此前认证绑定的用户信息并打印上线日志。
+     * 读取此前认证绑定的用户信息，通过 userId 注册到全局 userChannels 路由表，并打印上线日志。
      *
      * @param ctx 通道处理器上下文
      * @param evt 触发的事件对象
@@ -58,7 +63,9 @@ public class ChatConnectionHandler extends SimpleChannelInboundHandler<TextWebSo
         if (evt instanceof WebSocketServerProtocolHandler.HandshakeComplete) {
             User loginUser = ctx.channel().attr(ChatAttributes.LOGIN_USER).get();
             if (loginUser != null) {
-                log.info("netty websocket connected, userId={}", loginUser.getId());
+                // 单方开启 Channel：通过 userId 绑定全局路由映射，无需强制进房即可双向寻址
+                chatChannelManager.registerUserChannel(loginUser.getId(), ctx.channel());
+                log.info("netty websocket connected & registered userChannel, userId={}", loginUser.getId());
             }
         }
         super.userEventTriggered(ctx, evt);
@@ -78,19 +85,36 @@ public class ChatConnectionHandler extends SimpleChannelInboundHandler<TextWebSo
             // 2. 从 Channel 属性中获取握手阶段绑定的登录用户
             User loginUser = ctx.channel().attr(ChatAttributes.LOGIN_USER).get();
 
-            // 3. 分发处理加入聊天室请求
+            // 3. 分发处理加入队伍聊天室请求
             if ("JOIN".equalsIgnoreCase(request.getType())) {
                 chatRoomService.joinTeamRoom(request.getTeamId(), loginUser, ctx.channel());
                 return;
             }
 
-            // 4. 分发处理发送聊天消息请求
+            // 4. 分发处理发送队伍聊天消息请求
             if ("CHAT".equalsIgnoreCase(request.getType())) {
                 chatRoomService.sendRoomMessage(loginUser, ctx.channel(), request);
                 return;
             }
 
-            // 5. 不支持的消息类型提示
+            // 5. 分发处理进入单人私聊房间请求 (绑定单聊会话上下文)
+            if ("PRIVATE_JOIN".equalsIgnoreCase(request.getType())) {
+                if (request.getSessionId() != null && request.getSessionId() > 0) {
+                    privateChatService.ensureSessionParticipant(request.getSessionId(), loginUser.getId());
+                    ctx.channel().attr(ChatAttributes.SESSION_ID).set(request.getSessionId());
+                    ChatMessageResponse response = ChatMessageResponse.privateJoined(request.getSessionId());
+                    ctx.writeAndFlush(new TextWebSocketFrame(objectMapper.writeValueAsString(response)));
+                }
+                return;
+            }
+
+            // 6. 分发处理发送单人私聊消息请求 (支持离线持久化与在线点对点直推)
+            if ("PRIVATE_CHAT".equalsIgnoreCase(request.getType())) {
+                privateChatService.sendPrivateMessage(loginUser, ctx.channel(), request);
+                return;
+            }
+
+            // 7. 不支持的消息类型提示
             writeError(ctx, "不支持的消息类型");
         } catch (BusinessException e) {
             // 捕获业务校验异常（如未加入队伍、消息为空等）
@@ -105,7 +129,7 @@ public class ChatConnectionHandler extends SimpleChannelInboundHandler<TextWebSo
     /**
      * 当通道处于非活跃状态（客户端断开连接）时触发
      *
-     * 自动从当前所在队伍聊天室中移出该用户的 Channel 连接，避免脏连接残留，并打印断开日志。
+     * 自动从全局 userChannels 路由表以及队伍聊天室中移出该用户的 Channel 连接，避免脏连接残留，并打印断开日志。
      *
      * @param ctx 通道处理器上下文
      * @throws Exception 异常
@@ -114,6 +138,10 @@ public class ChatConnectionHandler extends SimpleChannelInboundHandler<TextWebSo
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         User loginUser = ctx.channel().attr(ChatAttributes.LOGIN_USER).get();
         if (loginUser != null) {
+            // 移出全局用户通道
+            chatChannelManager.removeUserChannel(loginUser.getId(), ctx.channel());
+
+            // 若此前加入了队伍房间，同步清理
             Long teamId = ctx.channel().attr(ChatAttributes.TEAM_ID).get();
             if (teamId != null) {
                 chatChannelManager.leaveRoom(teamId, loginUser.getId(), ctx.channel());

@@ -20,14 +20,26 @@ public class ChatMessageResponse implements Serializable {
      * 响应消息类型
      * - "JOINED": 加入队伍聊天室成功确认
      * - "CHAT": 队伍聊天消息广播
+     * - "PRIVATE_JOINED": 进入单聊会话成功确认
+     * - "PRIVATE_CHAT": 单人私聊消息推送/回执
      * - "ERROR": 异常或错误提示通知
      */
     private String type;
 
     /**
-     * 所属队伍 ID
+     * 所属队伍 ID (队伍群聊时使用)
      */
     private Long teamId;
+
+    /**
+     * 私聊会话 ID (单聊时使用)
+     */
+    private Long sessionId;
+
+    /**
+     * 消息接收方用户 ID (单聊时使用)
+     */
+    private Long toUserId;
 
     /**
      * 消息持久化存储生成的唯一主键 ID（未持久化时可能为 null）
@@ -87,6 +99,19 @@ public class ChatMessageResponse implements Serializable {
         ChatMessageResponse response = new ChatMessageResponse();
         response.setType("JOINED");
         response.setTeamId(teamId);
+        return response;
+    }
+
+    /**
+     * 快速构建进入单聊会话的确认响应对象
+     *
+     * @param sessionId 成功进入的会话 ID
+     * @return 进房成功响应实例
+     */
+    public static ChatMessageResponse privateJoined(Long sessionId) {
+        ChatMessageResponse response = new ChatMessageResponse();
+        response.setType("PRIVATE_JOINED");
+        response.setSessionId(sessionId);
         return response;
     }
 }

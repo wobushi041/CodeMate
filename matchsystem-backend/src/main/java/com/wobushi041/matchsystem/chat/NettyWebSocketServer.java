@@ -65,6 +65,11 @@ public class NettyWebSocketServer implements SmartLifecycle {
     private final ChatRoomService chatRoomService;
 
     /**
+     * 单人私聊业务服务层接口
+     */
+    private final com.wobushi041.matchsystem.service.PrivateChatService privateChatService;
+
+    /**
      * Jackson JSON 序列化工具类
      */
     private final ObjectMapper objectMapper;
@@ -113,7 +118,7 @@ public class NettyWebSocketServer implements SmartLifecycle {
                             pipeline.addLast(new HttpObjectAggregator(65536));
                             pipeline.addLast(new SessionHandshakeAuthHandler(sessionRepository));
                             pipeline.addLast(new WebSocketServerProtocolHandler(properties.getPath(), null, true));
-                            pipeline.addLast(new ChatConnectionHandler(chatChannelManager, chatRoomService, objectMapper));
+                            pipeline.addLast(new ChatConnectionHandler(chatChannelManager, chatRoomService, privateChatService, objectMapper));
                         }
                     });
             serverChannel = bootstrap.bind(properties.getPort()).syncUninterruptibly().channel();

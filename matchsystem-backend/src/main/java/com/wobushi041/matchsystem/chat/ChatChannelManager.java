@@ -32,6 +32,12 @@ public class ChatChannelManager {
     private final Map<Long, Map<Long, Channel>> roomUserChannels = new ConcurrentHashMap<>();
 
     /**
+     * 全局用户在线 Channel 映射表 (按 userId 直接关联，支持单方开启通道与点对点直推)
+     * 格式: userId -> Channel
+     */
+    private final Map<Long, Channel> userChannels = new ConcurrentHashMap<>();
+
+    /**
      * 用户加入指定队伍房间
      *
      * 若该用户在该队伍中已存在旧的连接，会主动关闭旧连接以保障单一会话活跃。
@@ -117,4 +123,63 @@ public class ChatChannelManager {
             roomUserChannels.remove(teamId, userChannels);
         }
     }
+
+    /**
+     * 注册用户全局活跃 Channel
+     *
+     * 当客户端通过 WebSocket 鉴权成功后调用。若该用户此前存在旧连接，主动关闭旧连接以保障单端最新活跃。
+     *
+     * @param userId  用户 ID
+     * @param channel 客户端网络通道
+     */
+    public void registerUserChannel(Long userId, Channel channel) {
+        if (userId == null || channel == null) {
+            return;
+        }
+        Channel oldChannel = userChannels.put(userId, channel);
+        if (oldChannel != null && oldChannel != channel && oldChannel.isOpen()) {
+            oldChannel.close();
+        }
+    }
+
+    /**
+     * 根据用户 ID 获取其全局活跃 Channel
+     *
+     * @param userId 用户 ID
+     * @return 活跃的 Channel 实例；若不在线或非活跃则返回 null
+     */
+    public Channel getUserChannel(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        Channel channel = userChannels.get(userId);
+        if (channel == null || !channel.isActive()) {
+            return null;
+        }
+        return channel;
+    }
+
+    /**
+     * 移除用户的全局活跃 Channel
+     *
+     * @param userId  用户 ID
+     * @param channel 待移除的客户端网络通道
+     */
+    public void removeUserChannel(Long userId, Channel channel) {
+        if (userId == null || channel == null) {
+            return;
+        }
+        userChannels.remove(userId, channel);
+    }
+
+    /**
+     * 检测指定用户是否在全局在线（具有活跃 WebSocket 连接）
+     *
+     * @param userId 用户 ID
+     * @return true-在线 false-离线
+     */
+    public boolean isUserOnline(Long userId) {
+        return getUserChannel(userId) != null;
+    }
 }
+
