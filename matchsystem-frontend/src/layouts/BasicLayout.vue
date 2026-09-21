@@ -1,128 +1,217 @@
 <template>
-  <div class="basic-layout" :class="{ 'basic-layout--auth': isAuthPage }">
-    <van-nav-bar
-        v-if="!isAuthPage"
-        class="mall-nav"
-        :title="title"
-        :left-arrow="!isMainTabPage"
-        @click-left="onClickLeft"
-        @click-right="onClickRight"
-    >
-      <template v-if="isIndexPage" #right>
-        <van-icon name="search" size="18"/>
-      </template>
-    </van-nav-bar>
-    <main id="content" class="mall-content" :class="{ 'mall-content--auth': isAuthPage }">
-      <router-view/>
+  <div class="basic-layout" :class="{ 'basic-layout--with-header': showSharedHeader }">
+    <header v-if="showSharedHeader" class="layout-header">
+      <button class="layout-header__back" type="button" aria-label="返回" @click="onBack">
+        <ArrowLeft :size="24" :stroke-width="2" />
+      </button>
+      <h1>{{ pageTitle }}</h1>
+      <span class="layout-header__spacer" aria-hidden="true" />
+    </header>
+
+    <main id="content" class="layout-content">
+      <router-view />
     </main>
-    <van-tabbar v-if="!isAuthPage" class="mall-tabbar" route @change="onChange">
-      <van-tabbar-item to="/" icon="home-o" name="index">主页</van-tabbar-item>
-      <van-tabbar-item to="/team" icon="search" name="team">队伍</van-tabbar-item>
-      <van-tabbar-item :to="{ path: '/ai/chat', query: { silentGreet: '1' } }" icon="chat-o" name="ai">AI编程助手</van-tabbar-item>
-      <van-tabbar-item to="/user" icon="friends-o" name="user">我的</van-tabbar-item>
-    </van-tabbar>
+
+    <nav class="prototype-tabbar" aria-label="主导航">
+      <button
+          v-for="item in navItems"
+          :key="item.name"
+          class="prototype-tabbar__item"
+          :class="{ 'prototype-tabbar__item--active': isNavActive(item.path) }"
+          type="button"
+          @click="goTab(item.path)"
+      >
+        <span class="prototype-tabbar__icon-wrap">
+          <component :is="item.icon" :size="24" :stroke-width="1.8" />
+          <span v-if="item.badge" class="prototype-tabbar__badge" />
+        </span>
+        <span class="prototype-tabbar__label">{{ item.label }}</span>
+      </button>
+    </nav>
   </div>
 </template>
 
 <script setup lang="ts">
-import { useRoute, useRouter } from "vue-router";
-import {computed, ref} from "vue";
-import routes from "../config/route";
+import {computed} from 'vue';
+import {useRoute, useRouter} from 'vue-router';
+import {ArrowLeft, Heart, Home, MessageSquare, UserRound, UsersRound} from 'lucide-vue-next';
 
 const router = useRouter();
 const route = useRoute();
-const DEFAULT_TITLE = 'AI编程匹配助手';
-const AUTH_PAGE_PATHS = ['/user/login', '/user/register'];
-const MAIN_TAB_PAGE_PATHS = ['/', '/team', '/ai/chat', '/user'];
-const title = ref(DEFAULT_TITLE);
-const isAuthPage = computed(() => AUTH_PAGE_PATHS.includes(route.path));
-const isIndexPage = computed(() => route.path === '/');
-const isMainTabPage = computed(() => MAIN_TAB_PAGE_PATHS.includes(route.path));
 
-/**
- * 根据路由切换标题
- */
-router.beforeEach((to, from) => {
-  const toPath = to.path;
-  const route = routes.find((route) => {
-    return toPath == route.path;
-  })
-  title.value = route?.title ?? DEFAULT_TITLE;
-})
+const showSharedHeader = computed(() => route.meta.headerMode === 'back');
+const pageTitle = computed(() => String(route.meta.title || 'AI编程匹配助手'));
 
-const onClickLeft = () => {
-  router.back();
+const navItems = [
+  {name: 'home', label: '主页', path: '/', icon: Home, match: (path: string) => path === '/'},
+  {name: 'match', label: '匹配', path: '/match', icon: Heart, match: (path: string) => path === '/match'},
+  {name: 'team', label: '队伍', path: '/team', icon: UsersRound, match: (path: string) => path.startsWith('/team')},
+  {name: 'ai', label: 'AI助手', path: '/ai/chat', icon: MessageSquare, badge: true, match: (path: string) => path === '/ai/chat'},
+  {name: 'user', label: '我的', path: '/user', icon: UserRound, match: (path: string) => path.startsWith('/user')},
+];
+
+const isNavActive = (path: string) => navItems.find(item => item.path === path)?.match(route.path) ?? false;
+
+const goTab = (path: string) => {
+  if (path === '/ai/chat') {
+    router.push({path, query: {silentGreet: '1'}});
+    return;
+  }
+  router.push(path);
 };
 
-const onClickRight = () => {
-  router.push('/search')
-};
-
+const onBack = () => router.back();
 </script>
 
 <style scoped>
 .basic-layout {
-  --app-nav-height: 46px;
-  --app-tabbar-height: 50px;
-
+  --app-header-height: 0px;
+  --app-tabbar-height: calc(64px + env(safe-area-inset-bottom));
   box-sizing: border-box;
   display: flex;
-  flex-direction: column;
+  width: 100%;
   height: 100vh;
   height: 100dvh;
+  flex-direction: column;
   overflow: hidden;
+  color: #f8fafc;
+  background: #0f172a;
 }
 
-.basic-layout--auth {
-  --app-nav-height: 0px;
-  --app-tabbar-height: 0px;
+.basic-layout--with-header {
+  --app-header-height: 56px;
 }
 
-/* 顶部导航:深色面板 + 底部微弱分隔线 */
-.mall-nav {
-  flex: 0 0 var(--app-nav-height);
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
-}
-
-.mall-nav :deep(.van-nav-bar__title) {
-  font-weight: 600;
-}
-
-.mall-content {
+.layout-header {
+  position: relative;
+  z-index: 20;
+  display: grid;
+  height: var(--app-header-height);
   box-sizing: border-box;
-  flex: 0 0 auto;
-  height: calc(100vh - var(--app-nav-height) - var(--app-tabbar-height));
-  height: calc(100dvh - var(--app-nav-height) - var(--app-tabbar-height));
+  flex: 0 0 var(--app-header-height);
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  align-items: center;
+  padding: 0 8px;
+  border-bottom: 1px solid #1e293b;
+  color: #f8fafc;
+  background: #0f172a;
+  box-shadow: 0 4px 14px rgba(2, 6, 23, 0.18);
+}
+
+.layout-header h1 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 24px;
+  letter-spacing: -0.02em;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layout-header__back {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #f8fafc;
+  background: transparent;
+  transition: background 0.18s ease, transform 0.15s ease;
+}
+
+.layout-header__back:active {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.layout-header__spacer {
+  width: 44px;
+  height: 44px;
+}
+
+.layout-content {
+  box-sizing: border-box;
+  width: 100%;
+  height: calc(100vh - var(--app-header-height));
+  height: calc(100dvh - var(--app-header-height));
   min-height: 0;
-  overflow-y: auto;
+  flex: 0 0 auto;
+  padding-bottom: var(--app-tabbar-height);
   overflow-x: hidden;
-  color: var(--text-main);
+  overflow-y: auto;
+  color: #f8fafc;
+  background: #0f172a;
   -webkit-overflow-scrolling: touch;
 }
 
-.mall-content--auth {
-  height: 100vh;
-  height: 100dvh;
-}
-
-/* 底部标签栏:固定最底部 + 深色面板 + 顶部 1px 分隔线 */
-.mall-tabbar {
+.prototype-tabbar {
   position: fixed;
+  right: 0;
   bottom: 0;
   left: 0;
-  width: 100%;
-  height: var(--app-tabbar-height);
   z-index: 100;
-  border-top: 1px solid var(--border-weak);
-  box-shadow: 0 -1px 6px rgba(0, 0, 0, 0.18);
+  display: flex;
+  height: var(--app-tabbar-height);
+  box-sizing: border-box;
+  align-items: flex-start;
+  padding: 0 8px env(safe-area-inset-bottom);
+  border-top: 1px solid #1e293b;
+  background: rgba(30, 41, 59, 0.96);
+  box-shadow: 0 -10px 26px rgba(2, 6, 23, 0.18);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
-.mall-tabbar :deep(.van-tabbar-item) {
-  color: var(--text-light);
-  transition: color 0.3s;
+.prototype-tabbar__item {
+  display: flex;
+  height: 64px;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 9px 2px 5px;
+  border: 0;
+  color: #94a3b8;
+  background: transparent;
+  font: inherit;
+  transition: color 0.18s ease, transform 0.15s ease;
 }
 
-.mall-tabbar :deep(.van-tabbar-item--active) {
-  color: var(--color-primary);
+.prototype-tabbar__item:active {
+  transform: scale(0.94);
+}
+
+.prototype-tabbar__item--active {
+  color: #f8fafc;
+}
+
+.prototype-tabbar__icon-wrap {
+  position: relative;
+  display: grid;
+  height: 27px;
+  place-items: center;
+}
+
+.prototype-tabbar__label {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.prototype-tabbar__badge {
+  position: absolute;
+  top: -1px;
+  right: -4px;
+  width: 7px;
+  height: 7px;
+  border: 2px solid #1e293b;
+  border-radius: 50%;
+  background: #ef4444;
 }
 </style>

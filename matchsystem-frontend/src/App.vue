@@ -1,11 +1,17 @@
-<script setup lang="ts">
-import BasicLayout from "./layouts/BasicLayout.vue";
-</script>
-
 <template>
-  <BasicLayout />
+  <main class="app-root">
+    <router-view />
+  </main>
 </template>
 
-<style>
-
+<style scoped>
+.app-root {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: #0f172a;
+}
 </style>
