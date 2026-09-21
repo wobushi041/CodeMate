@@ -36,7 +36,7 @@
     </div>
 
     <div class="partner-section-heading">
-      <h2>推荐拍档 <span>({{ filteredUsers.length }}人在线)</span></h2>
+      <h2>推荐拍档 <span>({{ filteredUsers.length }}人)</span></h2>
       <button type="button" @click="toggleSort">
         按活跃度排序
         <ArrowDownUp :size="16" :stroke-width="1.8" />
@@ -65,21 +65,25 @@
               :alt="user.username"
               @error="onAvatarError"
             />
-            <span class="online-status" />
           </div>
 
           <div class="partner-info">
             <div>
               <h3>{{ formatUserName(user) }}</h3>
-              <p>在线 · 寻找项目队友</p>
+              <p>寻找项目队友</p>
               <div class="partner-tags">
                 <span v-for="tag in user.tags" :key="tag">{{ tag }}</span>
               </div>
             </div>
             <div class="contact-row">
-              <button type="button" @click="contactUser(user)">
-                <Send :size="16" :stroke-width="1.9" />
-                联系我
+              <button
+                type="button"
+                :disabled="contactingUserId === user.id"
+                @click.stop="contactUser(user)"
+              >
+                <LoaderCircle v-if="contactingUserId === user.id" class="is-spinning" :size="16" />
+                <Send v-else :size="16" :stroke-width="1.9" />
+                <span>{{ contactingUserId === user.id ? '发起中...' : '联系我' }}</span>
               </button>
             </div>
           </div>
@@ -96,7 +100,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { ArrowDownUp, Bell, Search, Send, UsersRound } from 'lucide-vue-next';
+import { ArrowDownUp, Bell, LoaderCircle, Search, Send, UsersRound } from 'lucide-vue-next';
 import { Toast } from 'vant';
 import myAxios from '../plugins/myAxios';
 import type { UserType } from '../models/user';
@@ -168,7 +172,40 @@ const onAvatarError = (event: Event) => { const image = event.target as HTMLImag
 const onRefresh = async () => { await loadData(); refreshing.value = false; Toast.success('刷新成功'); };
 const toggleSort = () => { sortDescending.value = !sortDescending.value; };
 const showNotice = () => Toast('暂无新通知');
-const contactUser = (user: Partner) => Toast(`已准备联系 ${user.username}`);
+const contactingUserId = ref<number | null>(null);
+
+const contactUser = async (user: Partner) => {
+  if (!user || !user.id) {
+    Toast.fail('用户信息异常');
+    return;
+  }
+  if (contactingUserId.value !== null) {
+    return;
+  }
+  contactingUserId.value = Number(user.id);
+  try {
+    const res: any = await myAxios.post('/chat/private/start', {
+      targetUserId: Number(user.id),
+    });
+    if (res?.code === 0 && res?.data) {
+      const session = res.data;
+      const targetName = session.targetUser?.userName || user.username || '该伙伴';
+      const onlineStatus = session.isTargetOnline ? '对方当前在线' : '对方当前离线，已保留离线留言通道';
+      Toast.success({
+        message: `已开启与 ${targetName} 的单人聊天室\n(${onlineStatus})`,
+        duration: 2500,
+      });
+    } else {
+      Toast.fail(res?.description || res?.message || '发起私聊失败');
+    }
+  } catch (error: any) {
+    console.error('/chat/private/start error', error);
+    const msg = error?.response?.data?.description || error?.response?.data?.message || '请求失败，请稍后重试';
+    Toast.fail(msg);
+  } finally {
+    contactingUserId.value = null;
+  }
+};
 
 loadData();
 </script>
@@ -203,7 +240,6 @@ loadData();
 .partner-card--featured { border-color: rgba(255,255,255,.2); box-shadow: 0 10px 22px rgba(2,6,23,.22); }
 .partner-avatar-wrap { position: relative; flex: 0 0 auto; width: 80px; height: 80px; }
 .partner-avatar { display: block; width: 80px; height: 80px; border-radius: 12px; object-fit: cover; background: #334155; }
-.online-status { position: absolute; top: 4px; right: 4px; width: 12px; height: 12px; border: 2px solid #1e293b; border-radius: 50%; background: #22c55e; animation: pulse-green 2s cubic-bezier(.4,0,.6,1) infinite; }
 .partner-info { display: flex; width: 0; min-width: 0; flex: 1 1 0; flex-direction: column; justify-content: space-between; }
 .partner-info > div { min-width: 0; }
 .partner-info h3 { width: 100%; max-width: 100%; margin: 0; overflow: hidden; color: #f8fafc; font-size: 16px; font-weight: 600; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
@@ -224,7 +260,12 @@ loadData();
 .loading-lines span:nth-child(3) { width: 48%; }
 @keyframes pulse-green { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
 @keyframes loading-pulse { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.is-spinning { animation: spin 0.8s linear infinite; }
+.contact-row button:disabled { opacity: 0.65; cursor: not-allowed; }
 </style>
+
+
 
 
 

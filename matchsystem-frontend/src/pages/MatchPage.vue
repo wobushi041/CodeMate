@@ -85,9 +85,15 @@
         <X :size="22" :stroke-width="2" />
         <span>跳过</span>
       </button>
-      <button class="match-action match-action--contact" type="button" @click="contactPartner">
-        <MessageCircle :size="22" :stroke-width="2" />
-        <span>联系 TA</span>
+      <button
+        class="match-action match-action--contact"
+        type="button"
+        :disabled="contacting"
+        @click="contactPartner"
+      >
+        <LoaderCircle v-if="contacting" class="is-spinning" :size="22" />
+        <MessageCircle v-else :size="22" :stroke-width="2" />
+        <span>{{ contacting ? '连接中...' : '联系 TA' }}</span>
       </button>
       <button class="match-action match-action--next" type="button" @click="nextPartner()">
         <ArrowRight :size="22" :stroke-width="2" />
@@ -102,6 +108,7 @@ import {computed, onMounted, ref} from 'vue';
 import {
   ArrowRight,
   Check,
+  LoaderCircle,
   MapPin,
   MessageCircle,
   RefreshCw,
@@ -180,9 +187,40 @@ const nextPartner = (message?: string) => {
   currentIndex.value = (currentIndex.value + 1) % userList.value.length;
 };
 
-const contactPartner = () => {
-  if (!currentPartner.value) return;
-  Toast(`已准备联系 ${currentPartner.value.username || currentPartner.value.userAccount}`);
+const contacting = ref(false);
+
+const contactPartner = async () => {
+  const partner = currentPartner.value;
+  if (!partner || !partner.id) {
+    Toast.fail('未获取到当前拍档信息');
+    return;
+  }
+  if (contacting.value) {
+    return;
+  }
+  contacting.value = true;
+  try {
+    const res: any = await myAxios.post('/chat/private/start', {
+      targetUserId: Number(partner.id),
+    });
+    if (res?.code === 0 && res?.data) {
+      const session = res.data;
+      const targetName = session.targetUser?.userName || partner.username || partner.userAccount || '该拍档';
+      const onlineStatus = session.isTargetOnline ? '对方当前在线' : '对方当前离线，已保留离线留言通道';
+      Toast.success({
+        message: `已开启与 ${targetName} 的单人聊天室\n(${onlineStatus})`,
+        duration: 2500,
+      });
+    } else {
+      Toast.fail(res?.description || res?.message || '发起私聊失败');
+    }
+  } catch (error: any) {
+    console.error('/chat/private/start error', error);
+    const msg = error?.response?.data?.description || error?.response?.data?.message || '请求失败，请稍后重试';
+    Toast.fail(msg);
+  } finally {
+    contacting.value = false;
+  }
 };
 
 onMounted(loadMatches);
@@ -617,6 +655,15 @@ onMounted(loadMatches);
 
 @keyframes match-spin {
   to { transform: rotate(360deg); }
+}
+
+.is-spinning, .spinning {
+  animation: match-spin 0.8s linear infinite;
+}
+
+.match-action:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 @keyframes match-shimmer {
