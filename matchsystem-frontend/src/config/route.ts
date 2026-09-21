@@ -14,6 +14,7 @@ import TeamAddPage from '../pages/TeamAddPage.vue';
 import TeamUpdatePage from '../pages/TeamUpdatePage.vue';
 import AiChatPage from '../pages/AiChatPage.vue';
 import TeamChatPage from '../pages/TeamChatPage.vue';
+import PrivateChatPage from '../pages/PrivateChatPage.vue';
 
 const routes = [
   {
@@ -23,15 +24,16 @@ const routes = [
       {path: '', component: Index, meta: {title: '主页', headerMode: 'custom'}},
       {path: 'match', component: MatchPage, meta: {title: '匹配', headerMode: 'custom'}},
       {path: 'team', component: Team, meta: {title: '找队伍', headerMode: 'custom'}},
-      {path: 'team/add', component: TeamAddPage, meta: {title: '创建队伍', headerMode: 'custom'}},
-      {path: 'team/update', component: TeamUpdatePage, meta: {title: '更新队伍', headerMode: 'custom'}},
-      {path: 'team/chat', component: TeamChatPage, meta: {title: '队伍聊天室', headerMode: 'custom'}},
+      {path: 'team/add', component: TeamAddPage, meta: {title: '创建队伍', headerMode: 'custom', tabbar: false}},
+      {path: 'team/update', component: TeamUpdatePage, meta: {title: '更新队伍', headerMode: 'custom', tabbar: false}},
+      {path: 'team/chat', component: TeamChatPage, meta: {title: '队伍聊天室', headerMode: 'custom', tabbar: false}},
+      {path: 'chat/private', component: PrivateChatPage, meta: {title: '单人聊天室', headerMode: 'custom', tabbar: false}},
       {path: 'user', component: UserPage, meta: {title: '个人信息', headerMode: 'custom'}},
       {path: 'search', component: SearchPage, meta: {title: '搜索', headerMode: 'back'}},
       {path: 'user/list', component: SearchResultPage, meta: {title: '用户列表', headerMode: 'back'}},
-      {path: 'user/update', component: UserUpdatePage, meta: {title: '更新信息', headerMode: 'back', tabbar: false}},
-      {path: 'user/team/join', component: UserTeamJoinPage, meta: {title: '加入队伍', headerMode: 'back'}},
-      {path: 'user/team/create', component: UserTeamCreatePage, meta: {title: '创建队伍', headerMode: 'back'}},
+      {path: 'user/update', component: UserUpdatePage, meta: {title: '更新信息', headerMode: 'custom', tabbar: false}},
+      {path: 'user/team/join', component: UserTeamJoinPage, meta: {title: '我加入的队伍', headerMode: 'custom', tabbar: false}},
+      {path: 'user/team/create', component: UserTeamCreatePage, meta: {title: '我创建的队伍', headerMode: 'custom', tabbar: false}},
       {path: 'ai/chat', component: AiChatPage, meta: {title: 'AI 编程助手', headerMode: 'custom'}},
     ],
   },
