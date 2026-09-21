@@ -1,5 +1,5 @@
 <template>
-  <div class="basic-layout" :class="{ 'basic-layout--with-header': showSharedHeader }">
+  <div class="basic-layout" :class="{ 'basic-layout--with-header': showSharedHeader, 'basic-layout--without-tabbar': !showTabbar }">
     <header v-if="showSharedHeader" class="layout-header">
       <button class="layout-header__back" type="button" aria-label="返回" @click="onBack">
         <ArrowLeft :size="24" :stroke-width="2" />
@@ -12,7 +12,7 @@
       <router-view />
     </main>
 
-    <nav class="prototype-tabbar" aria-label="主导航">
+    <nav v-if="showTabbar" class="prototype-tabbar" aria-label="主导航">
       <button
           v-for="item in navItems"
           :key="item.name"
@@ -41,6 +41,7 @@ const route = useRoute();
 
 const showSharedHeader = computed(() => route.meta.headerMode === 'back');
 const pageTitle = computed(() => String(route.meta.title || 'AI编程匹配助手'));
+const showTabbar = computed(() => route.meta.tabbar !== false);
 
 const navItems = [
   {name: 'home', label: '主页', path: '/', icon: Home, match: (path: string) => path === '/'},
@@ -80,6 +81,10 @@ const onBack = () => router.back();
 
 .basic-layout--with-header {
   --app-header-height: 56px;
+}
+
+.basic-layout--without-tabbar {
+  --app-tabbar-height: 0px;
 }
 
 .layout-header {
@@ -215,3 +220,4 @@ const onBack = () => router.back();
   background: #ef4444;
 }
 </style>
+

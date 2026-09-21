@@ -29,7 +29,7 @@ const routes = [
       {path: 'user', component: UserPage, meta: {title: '个人信息', headerMode: 'custom'}},
       {path: 'search', component: SearchPage, meta: {title: '搜索', headerMode: 'back'}},
       {path: 'user/list', component: SearchResultPage, meta: {title: '用户列表', headerMode: 'back'}},
-      {path: 'user/update', component: UserUpdatePage, meta: {title: '更新信息', headerMode: 'back'}},
+      {path: 'user/update', component: UserUpdatePage, meta: {title: '更新信息', headerMode: 'back', tabbar: false}},
       {path: 'user/team/join', component: UserTeamJoinPage, meta: {title: '加入队伍', headerMode: 'back'}},
       {path: 'user/team/create', component: UserTeamCreatePage, meta: {title: '创建队伍', headerMode: 'back'}},
       {path: 'ai/chat', component: AiChatPage, meta: {title: 'AI 编程助手', headerMode: 'custom'}},
@@ -40,4 +40,5 @@ const routes = [
 ];
 
 export default routes;
+
 
