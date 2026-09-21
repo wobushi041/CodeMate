@@ -2,7 +2,6 @@
   <section class="match-page">
     <header class="match-header">
       <div>
-        <p>SMART CONNECTION</p>
         <h1>心动匹配</h1>
         <span>根据你的技术方向，为你精选合适拍档</span>
       </div>
@@ -12,6 +11,11 @@
     </header>
 
     <main class="match-content">
+      <h3 v-if="loading || currentPartner" class="match-recommendation-title">
+        <Sparkles :size="16" :stroke-width="2" />
+        今日推荐
+      </h3>
+
       <div v-if="loading" class="match-card match-card--loading" aria-label="正在匹配">
         <span class="loading-pill" />
         <span class="loading-avatar" />
@@ -22,7 +26,6 @@
 
       <article v-else-if="currentPartner" class="match-card">
         <div class="match-card__topline">
-          <span class="match-card__badge"><Sparkles :size="14" /> 今日推荐</span>
           <span class="match-card__score">{{ recommendationScore }}%</span>
         </div>
 
@@ -38,7 +41,6 @@
 
         <div class="match-identity">
           <h2>{{ formatUserName(currentPartner) }}</h2>
-          <p><MapPin :size="14" :stroke-width="1.9" /> 在线 · 可以开始交流</p>
         </div>
 
         <div class="match-tags">
@@ -105,6 +107,7 @@
 
 <script setup lang="ts">
 import {computed, onMounted, ref} from 'vue';
+import {useRouter} from 'vue-router';
 import {
   ArrowRight,
   Check,
@@ -123,6 +126,7 @@ import type {UserType} from '../models/user';
 
 type Partner = Omit<UserType, 'tags'> & {tags: string[]};
 
+const router = useRouter();
 const userList = ref<Partner[]>([]);
 const currentIndex = ref(0);
 const loading = ref(true);
@@ -206,10 +210,16 @@ const contactPartner = async () => {
     if (res?.code === 0 && res?.data) {
       const session = res.data;
       const targetName = session.targetUser?.userName || partner.username || partner.userAccount || '该拍档';
-      const onlineStatus = session.isTargetOnline ? '对方当前在线' : '对方当前离线，已保留离线留言通道';
-      Toast.success({
-        message: `已开启与 ${targetName} 的单人聊天室\n(${onlineStatus})`,
-        duration: 2500,
+      const targetAvatar = session.targetUser?.avatarUrl || partner.avatarUrl || '';
+      router.push({
+        path: '/chat/private',
+        query: {
+          sessionId: String(session.sessionId),
+          targetUserId: String(partner.id),
+          targetUsername: targetName,
+          targetAvatarUrl: targetAvatar,
+          isOnline: session.isTargetOnline ? '1' : '0',
+        },
       });
     } else {
       Toast.fail(res?.description || res?.message || '发起私聊失败');
@@ -295,8 +305,26 @@ onMounted(loadMatches);
   display: flex;
   flex: 1;
   min-height: 0;
+  flex-direction: column;
   align-items: flex-start;
   justify-content: center;
+}
+
+.match-recommendation-title {
+  display: flex;
+  width: 100%;
+  max-width: 430px;
+  align-items: center;
+  gap: 7px;
+  margin: 0 auto 10px;
+  color: #f8fafc;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
+}
+
+.match-recommendation-title svg {
+  color: #60a5fa;
 }
 
 .match-card {
@@ -312,25 +340,15 @@ onMounted(loadMatches);
     radial-gradient(circle at 50% 4%, rgba(59, 130, 246, 0.2), transparent 32%),
     #1e293b;
   box-shadow: 0 22px 45px rgba(2, 6, 23, 0.34);
+  margin-right: auto;
+  margin-left: auto;
 }
 
 .match-card__topline {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   margin-bottom: 18px;
-}
-
-.match-card__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  color: #bfdbfe;
-  background: rgba(59, 130, 246, 0.16);
-  font-size: 12px;
-  font-weight: 600;
 }
 
 .match-card__score {
@@ -593,7 +611,7 @@ onMounted(loadMatches);
 
 .match-card--loading {
   display: flex;
-  min-height: 500px;
+  min-height: 800px;
   flex-direction: column;
   align-items: center;
 }

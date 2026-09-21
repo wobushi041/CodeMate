@@ -13,14 +13,7 @@
       </div>
     </header>
 
-    <label class="partner-search">
-      <Search :size="20" :stroke-width="1.8" />
-      <input
-        v-model.trim="searchKeyword"
-        type="search"
-        placeholder="输入技术栈、拼音、账号搜索伙伴..."
-      />
-    </label>
+    <AppSearchBox v-model="searchKeyword" placeholder="输入技术栈、拼音、账号搜索伙伴..." />
 
     <div class="filter-list" aria-label="伙伴分类">
       <button
@@ -36,7 +29,7 @@
     </div>
 
     <div class="partner-section-heading">
-      <h2>推荐拍档 <span>({{ filteredUsers.length }}人)</span></h2>
+      <h2>推荐列表 <span>({{ filteredUsers.length }}人)</span></h2>
       <button type="button" @click="toggleSort">
         按活跃度排序
         <ArrowDownUp :size="16" :stroke-width="1.8" />
@@ -44,51 +37,71 @@
     </div>
 
     <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
-      <div v-if="loading" class="partner-list">
+      <div v-if="loading && !userList.length" class="partner-list">
         <div v-for="item in 4" :key="item" class="partner-card partner-card--loading">
           <span class="loading-avatar" />
           <div class="loading-lines"><span /><span /><span /></div>
         </div>
       </div>
 
-      <div v-else-if="filteredUsers.length" class="partner-list">
-        <article
-          v-for="(user, index) in filteredUsers"
-          :key="user.id"
-          class="partner-card"
-          :class="{ 'partner-card--featured': index === 1 }"
-        >
-          <div class="partner-avatar-wrap">
-            <img
-              class="partner-avatar"
-              :src="user.avatarUrl || fallbackAvatar"
-              :alt="user.username"
-              @error="onAvatarError"
-            />
-          </div>
+      <template v-else-if="filteredUsers.length">
+        <div class="partner-list">
+          <article
+            v-for="(user, index) in filteredUsers"
+            :key="user.id"
+            class="partner-card"
+            :class="{ 'partner-card--featured': index === 1 }"
+          >
+            <div class="partner-avatar-wrap">
+              <img
+                class="partner-avatar"
+                :src="user.avatarUrl || fallbackAvatar"
+                :alt="user.username"
+                @error="onAvatarError"
+              />
+            </div>
 
-          <div class="partner-info">
-            <div>
-              <h3>{{ formatUserName(user) }}</h3>
-              <p>寻找项目队友</p>
-              <div class="partner-tags">
-                <span v-for="tag in user.tags" :key="tag">{{ tag }}</span>
+            <div class="partner-info">
+              <div>
+                <h3>{{ formatUserName(user) }}</h3>
+                <p>寻找项目队友</p>
+                <div class="partner-tags">
+                  <span v-for="tag in user.tags" :key="tag">{{ tag }}</span>
+                </div>
+              </div>
+              <div class="contact-row">
+                <button
+                  type="button"
+                  :disabled="contactingUserId === user.id"
+                  @click.stop="contactUser(user)"
+                >
+                  <LoaderCircle v-if="contactingUserId === user.id" class="is-spinning" :size="16" />
+                  <Send v-else :size="16" :stroke-width="1.9" />
+                  <span>{{ contactingUserId === user.id ? '发起中...' : '联系我' }}</span>
+                </button>
               </div>
             </div>
-            <div class="contact-row">
-              <button
-                type="button"
-                :disabled="contactingUserId === user.id"
-                @click.stop="contactUser(user)"
-              >
-                <LoaderCircle v-if="contactingUserId === user.id" class="is-spinning" :size="16" />
-                <Send v-else :size="16" :stroke-width="1.9" />
-                <span>{{ contactingUserId === user.id ? '发起中...' : '联系我' }}</span>
-              </button>
-            </div>
-          </div>
-        </article>
-      </div>
+          </article>
+        </div>
+
+        <!-- 滑动到底部自然停留在第 20 条卡片处的分页状态区 -->
+        <div
+          class="scroll-load-status"
+          :class="{ 'scroll-load-status--finished': finished }"
+          @click="!finished && !loadingMore && onLoadNextPage()"
+        >
+          <template v-if="loadingMore">
+            <LoaderCircle class="is-spinning" :size="16" />
+            <span>正在加载下 20 位伙伴...</span>
+          </template>
+          <template v-else-if="finished">
+            <span>— 没有更多推荐伙伴了 —</span>
+          </template>
+          <template v-else>
+            <span>上拉或触底加载下 20 位伙伴</span>
+          </template>
+        </div>
+      </template>
 
       <div v-else class="partner-empty">
         <UsersRound :size="58" :stroke-width="1.3" />
@@ -99,11 +112,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { ArrowDownUp, Bell, LoaderCircle, Search, Send, UsersRound } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { ArrowDownUp, Bell, LoaderCircle, Send, UsersRound } from 'lucide-vue-next';
+import AppSearchBox from '../components/AppSearchBox.vue';
 import { Toast } from 'vant';
 import myAxios from '../plugins/myAxios';
 import type { UserType } from '../models/user';
+
+const router = useRouter();
 
 type Partner = Omit<UserType, 'tags'> & { tags: string[] };
 interface FilterTag { name: string; keywords: string[]; }
@@ -114,6 +131,11 @@ const sortDescending = ref(true);
 const userList = ref<Partner[]>([]);
 const loading = ref(true);
 const refreshing = ref(false);
+const pageNum = ref(1);
+const pageSize = 20;
+const total = ref(0);
+const loadingMore = ref(false);
+const finished = ref(false);
 let requestSeq = 0;
 
 const filterTags: FilterTag[] = [
@@ -148,28 +170,102 @@ const filteredUsers = computed(() => {
   return sortDescending.value ? result : [...result].reverse();
 });
 
-const loadData = async () => {
+const loadData = async (targetPage = 1, isRefresh = false) => {
   const currentRequestSeq = ++requestSeq;
-  loading.value = true;
+  if (targetPage === 1) {
+    if (!isRefresh && !userList.value.length) {
+      loading.value = true;
+    }
+  } else {
+    loadingMore.value = true;
+  }
+
   try {
-    const response = await myAxios.get('/user/recommend', { params: { pageSize: 20, pageNum: 1 } });
+    const response: any = await myAxios.get('/user/recommend', {
+      params: {
+        pageSize,
+        pageNum: targetPage,
+      },
+    });
     if (currentRequestSeq !== requestSeq) return;
-    const records = response?.data?.records;
-    userList.value = Array.isArray(records)
-      ? records.map((user: UserType) => ({ ...user, tags: normalizeTags(user.tags) }))
-      : [];
+
+    const page = response?.data;
+    const records: UserType[] = page?.records || [];
+    total.value = Number(page?.total) || 0;
+    const formattedRecords: Partner[] = records.map((user: UserType) => ({
+      ...user,
+      tags: normalizeTags(user.tags),
+    }));
+
+    if (targetPage === 1) {
+      userList.value = formattedRecords;
+      pageNum.value = 1;
+      finished.value = false;
+    } else {
+      const existingIds = new Set(userList.value.map((u) => u.id));
+      const uniqueNew = formattedRecords.filter((u) => !existingIds.has(u.id));
+      userList.value = [...userList.value, ...uniqueNew];
+      pageNum.value = targetPage;
+    }
+
+    const totalPages = Number(page?.pages) || 0;
+    if (
+      records.length < pageSize ||
+      (totalPages > 0 && targetPage >= totalPages) ||
+      (total.value > 0 && userList.value.length >= total.value)
+    ) {
+      finished.value = true;
+    }
   } catch (error) {
     console.error('/user/recommend error', error);
-    userList.value = [];
-    Toast.fail('请求失败');
+    if (targetPage === 1 && !userList.value.length) {
+      userList.value = [];
+    }
+    Toast.fail(targetPage === 1 ? '请求推荐伙伴失败' : '加载更多伙伴失败');
   } finally {
-    if (currentRequestSeq === requestSeq) loading.value = false;
+    if (currentRequestSeq === requestSeq) {
+      loading.value = false;
+      loadingMore.value = false;
+      refreshing.value = false;
+    }
   }
 };
 
+const onLoadNextPage = async () => {
+  if (loading.value || loadingMore.value || finished.value || refreshing.value) {
+    return;
+  }
+  await loadData(pageNum.value + 1, false);
+};
+
+const onContentScroll = () => {
+  const el = document.getElementById('content');
+  if (!el || loading.value || loadingMore.value || finished.value || refreshing.value) {
+    return;
+  }
+  // 严格在滑到底部（距离底端 <= 20px）时才触发下一页，保持前 20 条自然完整展示
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) {
+    onLoadNextPage();
+  }
+};
+
+onMounted(() => {
+  loadData(1);
+  const contentEl = document.getElementById('content');
+  contentEl?.addEventListener('scroll', onContentScroll, { passive: true });
+});
+
+onBeforeUnmount(() => {
+  const contentEl = document.getElementById('content');
+  contentEl?.removeEventListener('scroll', onContentScroll);
+});
+
 const formatUserName = (user: Partner) => user.planetCode ? `${user.username}(${user.planetCode})` : user.username;
 const onAvatarError = (event: Event) => { const image = event.target as HTMLImageElement; if (image.src !== fallbackAvatar) image.src = fallbackAvatar; };
-const onRefresh = async () => { await loadData(); refreshing.value = false; Toast.success('刷新成功'); };
+const onRefresh = async () => {
+  await loadData(1, true);
+  Toast.success('刷新成功');
+};
 const toggleSort = () => { sortDescending.value = !sortDescending.value; };
 const showNotice = () => Toast('暂无新通知');
 const contactingUserId = ref<number | null>(null);
@@ -190,10 +286,16 @@ const contactUser = async (user: Partner) => {
     if (res?.code === 0 && res?.data) {
       const session = res.data;
       const targetName = session.targetUser?.userName || user.username || '该伙伴';
-      const onlineStatus = session.isTargetOnline ? '对方当前在线' : '对方当前离线，已保留离线留言通道';
-      Toast.success({
-        message: `已开启与 ${targetName} 的单人聊天室\n(${onlineStatus})`,
-        duration: 2500,
+      const targetAvatar = session.targetUser?.avatarUrl || user.avatarUrl || '';
+      router.push({
+        path: '/chat/private',
+        query: {
+          sessionId: String(session.sessionId),
+          targetUserId: String(user.id),
+          targetUsername: targetName,
+          targetAvatarUrl: targetAvatar,
+          isOnline: session.isTargetOnline ? '1' : '0',
+        },
       });
     } else {
       Toast.fail(res?.description || res?.message || '发起私聊失败');
@@ -206,8 +308,6 @@ const contactUser = async (user: Partner) => {
     contactingUserId.value = null;
   }
 };
-
-loadData();
 </script>
 
 <style scoped>
@@ -220,10 +320,6 @@ loadData();
 .notice-button { display: grid; width: 40px; height: 40px; padding: 0; place-items: center; border: 0; border-radius: 50%; color: #94a3b8; background: #1e293b; transition: color .15s ease, background .15s ease, transform .15s ease; }
 .notice-button:active { transform: scale(.95); }
 .notice-badge { position: absolute; top: 0; right: 0; width: 10px; height: 10px; border: 2px solid #0f172a; border-radius: 50%; background: #ef4444; }
-.partner-search { display: flex; align-items: center; gap: 12px; width: 100%; height: 48px; box-sizing: border-box; margin-bottom: 24px; padding: 0 16px; border: 1px solid #334155; border-radius: 16px; color: #94a3b8; background: #1e293b; }
-.partner-search:focus-within { border-color: #fff; box-shadow: 0 0 0 1px #fff; }
-.partner-search input { min-width: 0; flex: 1; border: 0; outline: 0; color: #f8fafc; background: transparent; font: inherit; font-size: 14px; }
-.partner-search input::placeholder { color: #94a3b8; }
 .filter-list { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; padding-bottom: 4px; overflow-x: auto; scrollbar-width: none; }
 .filter-list::-webkit-scrollbar { display: none; }
 .filter-button { flex: 0 0 auto; padding: 10px 20px; border: 0; border-radius: 999px; color: #cbd5e1; background: #1e293b; font: inherit; font-size: 14px; line-height: 20px; white-space: nowrap; transition: transform .15s ease, background .15s ease, color .15s ease; }
@@ -235,7 +331,8 @@ loadData();
 .partner-section-heading button { display: flex; align-items: center; gap: 6px; padding: 0; border: 0; color: #f8fafc; background: transparent; font: inherit; font-size: 14px; font-weight: 500; white-space: nowrap; }
 .partner-section-heading button svg { color: #94a3b8; }
 .home-page :deep(.van-pull-refresh),
-.home-page :deep(.van-pull-refresh__track) { width: 100%; min-width: 0; }.partner-list { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; width: 100%; min-width: 0; gap: 16px; }
+.home-page :deep(.van-pull-refresh__track) { width: 100%; min-width: 0; }
+.partner-list { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; width: 100%; min-width: 0; gap: 16px; }
 .partner-card { display: flex; width: 100%; max-width: 100%; min-width: 0; margin-right: auto; margin-left: auto; gap: 16px; min-height: 112px; box-sizing: border-box; overflow: hidden; padding: 16px; border: 1px solid transparent; border-radius: 16px; background: #1e293b; transition: transform .15s ease, box-shadow .15s ease; }
 .partner-card--featured { border-color: rgba(255,255,255,.2); box-shadow: 0 10px 22px rgba(2,6,23,.22); }
 .partner-avatar-wrap { position: relative; flex: 0 0 auto; width: 80px; height: 80px; }
@@ -263,10 +360,25 @@ loadData();
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .is-spinning { animation: spin 0.8s linear infinite; }
 .contact-row button:disabled { opacity: 0.65; cursor: not-allowed; }
+.scroll-load-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 20px 16px 28px;
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 20px;
+  text-align: center;
+  user-select: none;
+}
+.scroll-load-status .is-spinning {
+  color: #38bdf8;
+}
+.scroll-load-status--finished {
+  color: #64748b;
+  font-size: 12px;
+}
 </style>
-
-
-
-
-
-
