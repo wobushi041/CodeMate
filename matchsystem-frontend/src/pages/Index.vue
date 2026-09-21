@@ -1,176 +1,231 @@
 <template>
-  <div class="mall-page index-page">
-    <van-form class="index-filter-form">
-      <van-cell-group class="index-filter-panel" inset>
-        <van-field class="index-filter-field" label="匹配模式" readonly>
-          <template #input>
-            <van-switch v-model="isMatchMode" size="22" />
-          </template>
-        </van-field>
-        <van-field v-if="!isMatchMode" class="index-filter-field" label="推荐人数" readonly>
-          <template #input>
-            <van-stepper
-              v-model="recommendPageSize"
-              integer
-              :min="1"
-              :max="50"
-              button-size="24"
-              input-width="36"
-            />
-          </template>
-        </van-field>
-      </van-cell-group>
-    </van-form>
+  <div class="home-page">
+    <header class="home-header">
+      <div class="home-header__copy">
+        <h1>CodeMate</h1>
+        <p>快速发掘和你默契最合的技术拍档</p>
+      </div>
+      <div class="notice-wrap">
+        <button class="notice-button" type="button" aria-label="通知" @click="showNotice">
+          <Bell :size="20" :stroke-width="1.8" />
+        </button>
+        <span class="notice-badge" />
+      </div>
+    </header>
+
+    <label class="partner-search">
+      <Search :size="20" :stroke-width="1.8" />
+      <input
+        v-model.trim="searchKeyword"
+        type="search"
+        placeholder="输入技术栈、拼音、账号搜索伙伴..."
+      />
+    </label>
+
+    <div class="filter-list" aria-label="伙伴分类">
+      <button
+        v-for="tag in filterTags"
+        :key="tag.name"
+        class="filter-button"
+        :class="{ 'filter-button--active': activeFilter === tag.name }"
+        type="button"
+        @click="activeFilter = tag.name"
+      >
+        {{ tag.name }}
+      </button>
+    </div>
+
+    <div class="partner-section-heading">
+      <h2>推荐拍档 <span>({{ filteredUsers.length }}人在线)</span></h2>
+      <button type="button" @click="toggleSort">
+        按活跃度排序
+        <ArrowDownUp :size="16" :stroke-width="1.8" />
+      </button>
+    </div>
+
     <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
-      <user-card-list :user-list="userList" :loading="loading"/>
-      <van-empty v-if="!userList || userList.length < 1" description="数据为空"/>
+      <div v-if="loading" class="partner-list">
+        <div v-for="item in 4" :key="item" class="partner-card partner-card--loading">
+          <span class="loading-avatar" />
+          <div class="loading-lines"><span /><span /><span /></div>
+        </div>
+      </div>
+
+      <div v-else-if="filteredUsers.length" class="partner-list">
+        <article
+          v-for="(user, index) in filteredUsers"
+          :key="user.id"
+          class="partner-card"
+          :class="{ 'partner-card--featured': index === 1 }"
+        >
+          <div class="partner-avatar-wrap">
+            <img
+              class="partner-avatar"
+              :src="user.avatarUrl || fallbackAvatar"
+              :alt="user.username"
+              @error="onAvatarError"
+            />
+            <span class="online-status" />
+          </div>
+
+          <div class="partner-info">
+            <div>
+              <h3>{{ formatUserName(user) }}</h3>
+              <p>在线 · 寻找项目队友</p>
+              <div class="partner-tags">
+                <span v-for="tag in user.tags" :key="tag">{{ tag }}</span>
+              </div>
+            </div>
+            <div class="contact-row">
+              <button type="button" @click="contactUser(user)">
+                <Send :size="16" :stroke-width="1.9" />
+                联系我
+              </button>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div v-else class="partner-empty">
+        <UsersRound :size="58" :stroke-width="1.3" />
+        <p>没有找到符合条件的伙伴</p>
+      </div>
     </van-pull-refresh>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import myAxios from "../plugins/myAxios";
-import {Toast} from "vant";
-import UserCardList from "../components/UserCardList.vue";
-import {UserType} from "../models/user";
+import { computed, ref } from 'vue';
+import { ArrowDownUp, Bell, Search, Send, UsersRound } from 'lucide-vue-next';
+import { Toast } from 'vant';
+import myAxios from '../plugins/myAxios';
+import type { UserType } from '../models/user';
 
-const isMatchMode = ref<boolean>(false);
-const recommendPageSize = ref(20);
+type Partner = Omit<UserType, 'tags'> & { tags: string[] };
+interface FilterTag { name: string; keywords: string[]; }
 
-const userList = ref([]);
+const searchKeyword = ref('');
+const activeFilter = ref('全部');
+const sortDescending = ref(true);
+const userList = ref<Partner[]>([]);
 const loading = ref(true);
 const refreshing = ref(false);
 let requestSeq = 0;
 
-const normalizeTags = (rawTags) => {
-  if (!rawTags) {
-    return [];
-  }
-  if (Array.isArray(rawTags)) {
-    return rawTags;
-  }
+const filterTags: FilterTag[] = [
+  { name: '全部', keywords: [] },
+  { name: '前端开发', keywords: ['vue', 'react', 'javascript', 'typescript', 'html', 'css', 'tailwind', 'nextjs'] },
+  { name: '后端技术', keywords: ['java', 'spring', 'mysql', 'go', 'python', 'node', 'redis'] },
+  { name: 'AI/深度学习', keywords: ['ai', 'rag', 'pytorch', 'llm', 'deepseek', '机器学习', '深度学习'] },
+  { name: '移动端', keywords: ['android', 'ios', 'flutter', 'swift', 'kotlin', 'react native'] },
+];
+const fallbackAvatar = 'https://api.dicebear.com/8.x/initials/svg?seed=Code&backgroundColor=334155&fontFamily=Arial';
+
+const normalizeTags = (rawTags: unknown): string[] => {
+  if (!rawTags) return [];
+  if (Array.isArray(rawTags)) return rawTags.map(String);
   try {
-    const parsedTags = JSON.parse(rawTags);
-    return Array.isArray(parsedTags) ? parsedTags : [String(parsedTags)];
-  } catch (error) {
-    return String(rawTags)
-      .split(/[,，]/)
-      .map(tag => tag.trim())
-      .filter(Boolean);
+    const parsed = JSON.parse(String(rawTags));
+    return Array.isArray(parsed) ? parsed.map(String) : [String(parsed)];
+  } catch {
+    return String(rawTags).split(/[,，]/).map((tag) => tag.trim()).filter(Boolean);
   }
 };
 
-/**
- * 加载数据
- */
+const filteredUsers = computed(() => {
+  const keyword = searchKeyword.value.toLowerCase();
+  const currentFilter = filterTags.find((tag) => tag.name === activeFilter.value);
+  const result = userList.value.filter((user) => {
+    const lowerTags = user.tags.map((tag) => tag.toLowerCase());
+    const matchesFilter = !currentFilter?.keywords.length || currentFilter.keywords.some((filter) => lowerTags.some((tag) => tag.includes(filter)));
+    const searchable = [user.username, user.userAccount, user.planetCode, user.profile, ...user.tags].filter(Boolean).join(' ').toLowerCase();
+    return matchesFilter && (!keyword || searchable.includes(keyword));
+  });
+  return sortDescending.value ? result : [...result].reverse();
+});
+
 const loadData = async () => {
   const currentRequestSeq = ++requestSeq;
-  let userListData;
   loading.value = true;
-  // 心动模式，根据标签匹配用户
-  if (isMatchMode.value) {
-    userListData = await myAxios.get('/user/match', {
-      params: {
-        num: 20,
-      },
-    })
-        .then(function (response) {
-          console.log('/user/match succeed', response);
-          return response?.data;
-        })
-        .catch(function (error) {
-          console.error('/user/match error', error);
-          Toast.fail('请求失败');
-        })
-  } else {
-    // 普通模式，直接分页查询用户
-    userListData = await myAxios.get('/user/recommend', {
-      params: {
-        pageSize: recommendPageSize.value,
-        pageNum: 1,
-      },
-    })
-        .then(function (response) {
-          console.log('/user/recommend succeed', response);
-          return response?.data?.records;
-        })
-        .catch(function (error) {
-          console.error('/user/recommend error', error);
-          Toast.fail('请求失败');
-        })
+  try {
+    const response = await myAxios.get('/user/recommend', { params: { pageSize: 20, pageNum: 1 } });
+    if (currentRequestSeq !== requestSeq) return;
+    const records = response?.data?.records;
+    userList.value = Array.isArray(records)
+      ? records.map((user: UserType) => ({ ...user, tags: normalizeTags(user.tags) }))
+      : [];
+  } catch (error) {
+    console.error('/user/recommend error', error);
+    userList.value = [];
+    Toast.fail('请求失败');
+  } finally {
+    if (currentRequestSeq === requestSeq) loading.value = false;
   }
-  if (currentRequestSeq !== requestSeq) {
-    return;
-  }
-  if (userListData) {
-    userListData.forEach((user: UserType) => {
-      user.tags = normalizeTags(user.tags);
-    })
-    userList.value = userListData;
-  }
-  loading.value = false;
-}
+};
 
-watch([isMatchMode, recommendPageSize], () => {
-  loadData();
-}, {immediate: true})
+const formatUserName = (user: Partner) => user.planetCode ? `${user.username}(${user.planetCode})` : user.username;
+const onAvatarError = (event: Event) => { const image = event.target as HTMLImageElement; if (image.src !== fallbackAvatar) image.src = fallbackAvatar; };
+const onRefresh = async () => { await loadData(); refreshing.value = false; Toast.success('刷新成功'); };
+const toggleSort = () => { sortDescending.value = !sortDescending.value; };
+const showNotice = () => Toast('暂无新通知');
+const contactUser = (user: Partner) => Toast(`已准备联系 ${user.username}`);
 
-const onRefresh = async () => {
-  await loadData();
-  refreshing.value = false;
-  Toast.success('刷新成功');
-}
-
+loadData();
 </script>
 
 <style scoped>
-.index-page {
-  box-sizing: border-box;
-  padding-top: 8px;
-}
-
-.index-filter-form,
-.index-filter-panel,
-.index-filter-field {
-  box-sizing: border-box;
-}
-
-.index-filter-form {
-  padding: 0 12px 8px;
-}
-
-.index-filter-panel {
-  box-sizing: border-box;
-  width: 100%;
-  margin: 0;
-  background: var(--bg-panel);
-  border: 1px solid var(--border-weak);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.index-filter-field {
-  background: transparent;
-}
-
-.index-filter-field :deep(.van-field__label),
-.index-filter-field :deep(.van-field__control) {
-  color: var(--text-main);
-}
-
-.index-filter-field :deep(.van-field__body) {
-  justify-content: flex-end;
-}
-
-.index-filter-field :deep(.van-stepper__input) {
-  background: var(--bg-elevated);
-  color: var(--text-main);
-}
-
-.index-filter-field :deep(.van-stepper__minus),
-.index-filter-field :deep(.van-stepper__plus) {
-  background: rgba(29, 144, 245, 0.16);
-  color: #7cc0ff;
-}
+.home-page { width: 100%; max-width: 100%; min-height: 100%; box-sizing: border-box; padding: 30px 16px 24px; overflow-x: hidden; color: #f8fafc; background: #0f172a; }
+.home-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.home-header__copy { min-width: 0; }
+.home-header h1 { margin: 0; color: #f8fafc; font-size: 24px; font-weight: 700; line-height: 32px; letter-spacing: -.025em; }
+.home-header p { margin: 4px 0 0; color: #cbd5e1; font-size: 14px; line-height: 20px; }
+.notice-wrap { position: relative; flex: 0 0 auto; }
+.notice-button { display: grid; width: 40px; height: 40px; padding: 0; place-items: center; border: 0; border-radius: 50%; color: #94a3b8; background: #1e293b; transition: color .15s ease, background .15s ease, transform .15s ease; }
+.notice-button:active { transform: scale(.95); }
+.notice-badge { position: absolute; top: 0; right: 0; width: 10px; height: 10px; border: 2px solid #0f172a; border-radius: 50%; background: #ef4444; }
+.partner-search { display: flex; align-items: center; gap: 12px; width: 100%; height: 48px; box-sizing: border-box; margin-bottom: 24px; padding: 0 16px; border: 1px solid #334155; border-radius: 16px; color: #94a3b8; background: #1e293b; }
+.partner-search:focus-within { border-color: #fff; box-shadow: 0 0 0 1px #fff; }
+.partner-search input { min-width: 0; flex: 1; border: 0; outline: 0; color: #f8fafc; background: transparent; font: inherit; font-size: 14px; }
+.partner-search input::placeholder { color: #94a3b8; }
+.filter-list { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; padding-bottom: 4px; overflow-x: auto; scrollbar-width: none; }
+.filter-list::-webkit-scrollbar { display: none; }
+.filter-button { flex: 0 0 auto; padding: 10px 20px; border: 0; border-radius: 999px; color: #cbd5e1; background: #1e293b; font: inherit; font-size: 14px; line-height: 20px; white-space: nowrap; transition: transform .15s ease, background .15s ease, color .15s ease; }
+.filter-button:active { transform: scale(.95); }
+.filter-button--active { color: #030712; background: #fff; font-weight: 600; }
+.partner-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 20px; }
+.partner-section-heading h2 { margin: 0; color: #f8fafc; font-size: 18px; font-weight: 600; line-height: 28px; }
+.partner-section-heading h2 span { color: #94a3b8; font-size: 14px; font-weight: 400; }
+.partner-section-heading button { display: flex; align-items: center; gap: 6px; padding: 0; border: 0; color: #f8fafc; background: transparent; font: inherit; font-size: 14px; font-weight: 500; white-space: nowrap; }
+.partner-section-heading button svg { color: #94a3b8; }
+.home-page :deep(.van-pull-refresh),
+.home-page :deep(.van-pull-refresh__track) { width: 100%; min-width: 0; }.partner-list { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; width: 100%; min-width: 0; gap: 16px; }
+.partner-card { display: flex; width: 100%; max-width: 100%; min-width: 0; margin-right: auto; margin-left: auto; gap: 16px; min-height: 112px; box-sizing: border-box; overflow: hidden; padding: 16px; border: 1px solid transparent; border-radius: 16px; background: #1e293b; transition: transform .15s ease, box-shadow .15s ease; }
+.partner-card--featured { border-color: rgba(255,255,255,.2); box-shadow: 0 10px 22px rgba(2,6,23,.22); }
+.partner-avatar-wrap { position: relative; flex: 0 0 auto; width: 80px; height: 80px; }
+.partner-avatar { display: block; width: 80px; height: 80px; border-radius: 12px; object-fit: cover; background: #334155; }
+.online-status { position: absolute; top: 4px; right: 4px; width: 12px; height: 12px; border: 2px solid #1e293b; border-radius: 50%; background: #22c55e; animation: pulse-green 2s cubic-bezier(.4,0,.6,1) infinite; }
+.partner-info { display: flex; width: 0; min-width: 0; flex: 1 1 0; flex-direction: column; justify-content: space-between; }
+.partner-info > div { min-width: 0; }
+.partner-info h3 { width: 100%; max-width: 100%; margin: 0; overflow: hidden; color: #f8fafc; font-size: 16px; font-weight: 600; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
+.partner-info p { margin: 4px 0 0; color: #cbd5e1; font-size: 12px; line-height: 16px; }
+.partner-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.partner-tags span { padding: 4px 12px; border-radius: 999px; color: #cbd5e1; background: #334155; font-size: 12px; line-height: 16px; }
+.contact-row { display: flex; justify-content: flex-end; margin-top: 16px; }
+.contact-row button { display: inline-flex; max-width: 100%; box-sizing: border-box; align-items: center; gap: 8px; padding: 8px 20px; border: 0; border-radius: 999px; color: #030712; background: #fff; font: inherit; font-size: 14px; font-weight: 600; line-height: 20px; box-shadow: 0 4px 8px rgba(2,6,23,.18); transition: transform .15s ease, background .15s ease; }
+.contact-row button:active { transform: scale(.95); background: #f4f4f5; }
+.partner-empty { padding: 64px 20px; color: #94a3b8; text-align: center; }
+.partner-empty svg { display: block; margin: 0 auto 16px; opacity: .2; }
+.partner-empty p { margin: 0; font-size: 14px; }
+.partner-card--loading { min-height: 144px; }
+.loading-avatar { flex: 0 0 80px; width: 80px; height: 80px; border-radius: 12px; background: #334155; animation: loading-pulse 1.4s ease-in-out infinite; }
+.loading-lines { display: grid; align-content: start; gap: 10px; flex: 1; padding-top: 4px; }
+.loading-lines span { display: block; height: 10px; border-radius: 999px; background: #334155; animation: loading-pulse 1.4s ease-in-out infinite; }
+.loading-lines span:nth-child(2) { width: 72%; }
+.loading-lines span:nth-child(3) { width: 48%; }
+@keyframes pulse-green { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+@keyframes loading-pulse { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
 </style>
+
+
+
+
