@@ -57,7 +57,7 @@ public class DeepSeekModelConfig {
     }
 
     /**
-     * 流式聊天模型（SSE）
+     * 配置流式聊天模型（SSE）
      */
     @Bean
     public StreamingChatModel deepSeekStreamingChatModel() {

@@ -11,16 +11,49 @@ import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * 聊天室长连接与消息交互业务处理器
+ *
+ * 继承自 Netty 的 SimpleChannelInboundHandler，专门负责处理已升级成功的 WebSocket 文本帧（TextWebSocketFrame）。
+ *
+ * 核心职责：
+ * - 监听握手完成事件（HandshakeComplete）记录用户连接日志；
+ * - 反序列化客户端请求帧并根据消息类型（JOIN / CHAT）分发调用聊天室业务服务；
+ * - 监听连接断开事件（channelInactive），自动执行退房与在线通道释放；
+ * - 捕获业务异常与协议解析异常，格式化构建统一错误响应帧回传至客户端。
+ *
+ * @author 硫酸铜
+ */
 @Slf4j
 @RequiredArgsConstructor
 public class ChatConnectionHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
-    //构造器方式注入,这里用到@requiredArgsConstructor注解,来源于lombok
+
+    /**
+     * 聊天室通道管理器
+     */
     private final ChatChannelManager chatChannelManager;
+
+    /**
+     * 聊天室业务层接口
+     */
     private final ChatRoomService chatRoomService;
+
+    /**
+     * Jackson JSON 序列化与反序列化工具
+     */
     private final ObjectMapper objectMapper;
 
+    /**
+     * 捕获并处理用户自定义事件
+     *
+     * 当接收到协议握手完成事件 HandshakeComplete 时，
+     * 读取此前认证绑定的用户信息并打印上线日志。
+     *
+     * @param ctx 通道处理器上下文
+     * @param evt 触发的事件对象
+     * @throws Exception 异常
+     */
     @Override
-    //父类提供一个扩展父类，重写父类让用户可以自定义处理各种通道事件
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
         if (evt instanceof WebSocketServerProtocolHandler.HandshakeComplete) {
             User loginUser = ctx.channel().attr(ChatAttributes.LOGIN_USER).get();
@@ -31,64 +64,71 @@ public class ChatConnectionHandler extends SimpleChannelInboundHandler<TextWebSo
         super.userEventTriggered(ctx, evt);
     }
 
-    @Override    // 重写父类方法的注解
     /**
-     * 处理WebSocket文本消息的方法
-     * @param ctx ChannelHandlerContext对象，提供Channel相关的操作
-     * @param frame 接收到的TextWebSocketFrame消息对象
+     * 读取并处理客户端发送的 WebSocket 文本消息帧
+     *
+     * @param ctx   通道处理器上下文
+     * @param frame 接收到的文本帧对象
      */
+    @Override
     protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame frame) {
         try {
-            // 使用Jackson将消息体转换为ChatInboundMessage对象，反序列化
+            // 1. 反序列化消息体为 ChatInboundMessage
             ChatInboundMessage request = objectMapper.readValue(frame.text(), ChatInboundMessage.class);
-            // 从Channel中获取已登录的用户信息
+            // 2. 从 Channel 属性中获取握手阶段绑定的登录用户
             User loginUser = ctx.channel().attr(ChatAttributes.LOGIN_USER).get();
-            // 处理加入聊天室类型的消息，真正干活的业务层是chatRoomServiceImpl
+
+            // 3. 分发处理加入聊天室请求
             if ("JOIN".equalsIgnoreCase(request.getType())) {
                 chatRoomService.joinTeamRoom(request.getTeamId(), loginUser, ctx.channel());
                 return;
             }
-            // 处理聊天消息类型的消息
+
+            // 4. 分发处理发送聊天消息请求
             if ("CHAT".equalsIgnoreCase(request.getType())) {
                 chatRoomService.sendRoomMessage(loginUser, ctx.channel(), request);
                 return;
             }
-            // 如果消息类型不支持，返回错误信息
+
+            // 5. 不支持的消息类型提示
             writeError(ctx, "不支持的消息类型");
         } catch (BusinessException e) {
-            // 处理业务异常，返回错误描述
+            // 捕获业务校验异常（如未加入队伍、消息为空等）
             writeError(ctx, e.getDescription());
         } catch (Exception e) {
-            // 处理其他异常，记录错误日志并返回错误信息
+            // 捕获反序列化或系统级不可预期异常
             log.error("handle websocket message failed", e);
             writeError(ctx, "消息格式错误");
         }
     }
 
-    @Override
     /**
-     * 当通道变为非活跃状态时调用此方法
-     * 这通常意味着客户端已经断开连接
-     * @param ChannelHandlerContext ctx 通道处理器上下文，包含通道信息和相关操作
-     * @throws Exception 可能抛出的异常
+     * 当通道处于非活跃状态（客户端断开连接）时触发
+     *
+     * 自动从当前所在队伍聊天室中移出该用户的 Channel 连接，避免脏连接残留，并打印断开日志。
+     *
+     * @param ctx 通道处理器上下文
+     * @throws Exception 异常
      */
+    @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        // 从通道上下文中获取已登录的用户信息
         User loginUser = ctx.channel().attr(ChatAttributes.LOGIN_USER).get();
-        // 如果用户已登录（不为null）
         if (loginUser != null) {
-            // 从聊天通道管理器中移除该用户的通道连接
             Long teamId = ctx.channel().attr(ChatAttributes.TEAM_ID).get();
             if (teamId != null) {
                 chatChannelManager.leaveRoom(teamId, loginUser.getId(), ctx.channel());
             }
-            // 记录用户断开连接的日志，包含用户ID信息
             log.info("netty websocket disconnected, userId={}", loginUser.getId());
         }
-        // 调用父类的channelInactive方法，确保父类的处理逻辑也能执行
         super.channelInactive(ctx);
     }
 
+    /**
+     * 构造标准错误格式响应并写回给客户端
+     *
+     * @param ctx     通道处理器上下文
+     * @param message 错误提示信息
+     */
     private void writeError(ChannelHandlerContext ctx, String message) {
         ChatMessageResponse response = ChatMessageResponse.error(message);
         try {

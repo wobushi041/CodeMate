@@ -21,6 +21,7 @@ public interface AiChatService {
      * @param memoryId   会话 ID，用于隔离不同用户的对话记忆
      * @param userMessage 用户消息（已注入 tags 上下文）
      * @return 流式响应
+     *  用异步数据流对象 Flux 接收流式数据
      */
     @SystemMessage(fromResource = "system-prompt.txt")
     Flux<String> chatStream(@MemoryId int memoryId, @UserMessage String userMessage);
