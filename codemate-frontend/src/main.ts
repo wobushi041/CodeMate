@@ -7,7 +7,6 @@ import 'vant/lib/index.css';
 import '../global.css'
 import './styles/mallchat.css'
 import './styles/tailwind.css'
-import './styles/tailwind.css'
 import {getCurrentUser} from "./services/user";
 import {getCurrentUserState} from "./states/user";
 
@@ -21,17 +20,24 @@ const router = VueRouter.createRouter({
 })
 
 router.beforeEach(async (to) => {
-    // 登录、注册页不需要登录即可访问
-    if (to.path === '/user/login' || to.path === '/user/register') {
-        return true;
-    }
+    const isAuthRoute = to.path === '/user/login' || to.path === '/user/register';
 
     let currentUser = getCurrentUserState();
     if (!currentUser) {
         currentUser = await getCurrentUser();
     }
 
-    if (!currentUser) {
+    // 1. 已登录用户访问登录/注册页，直接重定向回首页或重定向目标页
+    if (currentUser && isAuthRoute) {
+        const rawRedirect = to.query?.redirect;
+        if (typeof rawRedirect === 'string' && rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') && !rawRedirect.startsWith('/user/login')) {
+            return rawRedirect;
+        }
+        return '/';
+    }
+
+    // 2. 未登录用户访问受保护路由，重定向至登录页并保存目标路由
+    if (!currentUser && !isAuthRoute) {
         return {
             path: '/user/login',
             query: {

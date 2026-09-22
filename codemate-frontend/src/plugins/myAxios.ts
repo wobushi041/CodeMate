@@ -19,10 +19,13 @@ myAxios.interceptors.request.use(function (config) {
 
 // Add a response interceptor
 myAxios.interceptors.response.use(function (response) {
-    // 未登录则跳转到登录页
+    // 未登录则跳转到登录页（排除当前已在登录页或注册页，避免循环重定向）
     if (response?.data?.code === 40100) {
-        const redirectUrl = window.location.href;
-        window.location.href = `/user/login?redirect=${redirectUrl}`;
+        const currentPath = window.location.pathname;
+        if (currentPath !== '/user/login' && currentPath !== '/user/register') {
+            const redirectPath = window.location.pathname + window.location.search;
+            window.location.href = `/user/login?redirect=${encodeURIComponent(redirectPath)}`;
+        }
     }
     // Do something with response data
     return response.data;
