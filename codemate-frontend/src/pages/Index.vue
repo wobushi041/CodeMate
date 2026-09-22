@@ -49,7 +49,6 @@
           v-for="(user, index) in filteredUsers"
           :key="user.id"
           class="partner-card"
-          :class="{ 'partner-card--featured': index === 1 }"
         >
           <div class="partner-avatar-wrap">
             <img
@@ -332,7 +331,6 @@ const isUserContacted = (userId: number) => contactedUserIds.value.includes(Numb
 .partner-section-heading button svg { color: #94a3b8; }
 .partner-list { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; width: 100%; min-width: 0; gap: 16px; }
 .partner-card { display: flex; width: 100%; max-width: 100%; min-width: 0; margin-right: auto; margin-left: auto; gap: 16px; min-height: 112px; box-sizing: border-box; overflow: hidden; padding: 16px; border: 1px solid transparent; border-radius: 16px; background: #1e293b; transition: transform .15s ease, box-shadow .15s ease; }
-.partner-card--featured { border-color: rgba(255,255,255,.2); box-shadow: 0 10px 22px rgba(2,6,23,.22); }
 .partner-avatar-wrap { position: relative; flex: 0 0 auto; width: 80px; height: 80px; }
 .partner-avatar { display: block; width: 80px; height: 80px; border-radius: 12px; object-fit: cover; background: #334155; }
 .partner-info { display: flex; width: 0; min-width: 0; flex: 1 1 0; flex-direction: column; justify-content: space-between; }
