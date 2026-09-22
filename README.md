@@ -80,7 +80,7 @@
 
 ## 🛠 技术选型
 
-### 后端技术栈 (matchsystem-backend)
+### 后端技术栈 (codemate-backend)
 
 | 技术 / 组件 | 版本 | 说明 |
 | :--- | :--- | :--- |
@@ -95,7 +95,7 @@
 | **Elasticsearch** | 8.x | 标签语义分析切词（IK Analyzer） |
 | **Knife4j** | 4.6.0 | OpenAPI 3.0 规范接口聚合文档 |
 
-### 前端技术栈 (matchsystem-frontend)
+### 前端技术栈 (codemate-frontend)
 
 | 技术 / 组件 | 版本 | 说明 |
 | :--- | :--- | :--- |
@@ -113,9 +113,9 @@
 
 ```text
 CodeMate/
-├── matchsystem-backend/                     # 后端服务工程 (Spring Boot + Netty)
-│   ├── src/main/java/com/wobushi041/matchsystem/
-│   │   ├── MatchsystemApplication.java      # Spring Boot 启动引导入口
+├── codemate-backend/                        # 后端服务工程 (Spring Boot + Netty)
+│   ├── src/main/java/com/wobushi041/codemate/
+│   │   ├── CodemateApplication.java         # Spring Boot 启动引导入口
 │   │   ├── ai/                              # LangChain4j RAG 与 AI 流式问答模块
 │   │   ├── chat/                            # Netty WebSocket 服务器与长连接管理器
 │   │   ├── common/                          # 统一结果封装、错误码与通用常量
@@ -131,7 +131,7 @@ CodeMate/
 │   └── src/main/resources/
 │       ├── application-template.yml         # 核心配置模板
 │       └── sql/create_table.sql             # 数据库建表与初始数据脚本
-├── matchsystem-frontend/                    # 前端交互工程 (Vue 3 + TypeScript)
+├── codemate-frontend/                       # 前端交互工程 (Vue 3 + TypeScript)
 │   ├── src/
 │   │   ├── components/                      # 公共 UI 组件 (用户卡片、队伍卡片等)
 │   │   ├── config/                          # 路由规则表配置 (route.ts)
@@ -163,15 +163,16 @@ CodeMate/
 ### 2. 数据库初始化
 在 MySQL 中创建数据库并执行建表脚本：
 ```sql
-CREATE DATABASE IF NOT EXISTS matchsystem DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE matchsystem;
--- 执行 matchsystem-backend/src/main/resources/sql/create_table.sql 脚本
+-- 标准推荐库名 codemate（亦兼容已有 matchsystem 数据库）
+CREATE DATABASE IF NOT EXISTS codemate DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE codemate;
+-- 执行 codemate-backend/src/main/resources/sql/create_table.sql 脚本
 ```
 
 ### 3. 后端服务启动
 ```powershell
 # 1. 进入后端目录
-cd .\matchsystem-backend
+cd .\codemate-backend
 
 # 2. 根据模板创建实际配置文件
 Copy-Item .\src\main\resources\application-template.yml .\src\main\resources\application.yml
@@ -187,7 +188,7 @@ mvn spring-boot:run
 ### 4. 前端工程启动
 ```powershell
 # 1. 打开新终端进入前端工程
-cd .\matchsystem-frontend
+cd .\codemate-frontend
 
 # 2. 安装前端项目依赖
 npm install

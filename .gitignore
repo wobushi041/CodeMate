@@ -20,7 +20,7 @@ firebase-debug.log
 *.crt
 *.pfx
 
-# ==================== 前端 (matchsystem-frontend) ====================
+# ==================== 前端 (codemate-frontend) ====================
 node_modules
 dist
 dist-ssr
@@ -41,7 +41,7 @@ coverage
 .next
 .vite
 
-# ==================== 后端 (matchsystem-backend) ====================
+# ==================== 后端 (codemate-backend) ====================
 # Maven 构建输出
 target/
 build/
