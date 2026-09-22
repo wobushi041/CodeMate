@@ -82,6 +82,7 @@ import SubPageLayout from '../components/SubPageLayout.vue';
 import myAxios from '../plugins/myAxios';
 import { getCurrentUser } from '../services/user';
 import { UserType } from '../models/user';
+import { markUserContacted } from '../services/privateChat';
 
 type ChatMessage = {
   type?: string;
@@ -139,6 +140,7 @@ onMounted(async () => {
   }
 
   currentUser.value = await getCurrentUser();
+  markUserContacted(targetUserId.value);
 
   // 若没有 sessionId，先通过 targetUserId 初始化或获取会话
   if (!sessionId.value && targetUserId.value) {
@@ -194,6 +196,9 @@ const loadHistory = async () => {
     if (res?.code === 0) {
       const page: ChatMessagePage = res.data || {};
       messages.value = [...(page.records || [])].reverse();
+      if (messages.value.length) {
+        markUserContacted(targetUserId.value);
+      }
       await scrollToBottom();
     } else {
       Toast.fail(res?.description || '加载私聊记录失败');

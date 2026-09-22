@@ -74,11 +74,26 @@
         </div>
       </article>
 
+      <div v-else-if="!hasUserTags" class="match-empty match-empty--no-tags">
+        <div class="match-empty__icon-wrap">
+          <Tags :size="48" :stroke-width="1.6" />
+        </div>
+        <h2>尚未添加技术标签</h2>
+        <p>心动匹配根据你的技术方向精选拍档，先去设置你的技术栈吧。</p>
+        <button class="match-empty__btn match-empty__btn--primary" type="button" @click="goToAddTags">
+          <Tags :size="18" :stroke-width="2" />
+          <span>去添加标签</span>
+        </button>
+      </div>
+
       <div v-else class="match-empty">
         <UsersRound :size="58" :stroke-width="1.4" />
         <h2>暂时没有新的匹配</h2>
         <p>稍后再来看看，系统会持续为你寻找合适拍档。</p>
-        <button type="button" @click="loadMatches"><RefreshCw :size="18" />重新匹配</button>
+        <button class="match-empty__btn" type="button" @click="loadMatches">
+          <RefreshCw :size="18" />
+          <span>重新匹配</span>
+        </button>
       </div>
     </main>
 
@@ -89,13 +104,15 @@
       </button>
       <button
         class="match-action match-action--contact"
+        :class="{ 'match-action--contacted': currentPartnerContacted }"
         type="button"
         :disabled="contacting"
         @click="contactPartner"
       >
         <LoaderCircle v-if="contacting" class="is-spinning" :size="22" />
-        <MessageCircle v-else :size="22" :stroke-width="2" />
-        <span>{{ contacting ? '连接中...' : '联系 TA' }}</span>
+        <MessageCircle v-else-if="!currentPartnerContacted" :size="22" :stroke-width="2" />
+        <Check v-else :size="22" :stroke-width="2" />
+        <span>{{ contacting ? '连接中...' : currentPartnerContacted ? '已联系' : '联系 TA' }}</span>
       </button>
       <button class="match-action match-action--next" type="button" @click="nextPartner()">
         <ArrowRight :size="22" :stroke-width="2" />
@@ -116,6 +133,7 @@ import {
   MessageCircle,
   RefreshCw,
   Sparkles,
+  Tags,
   Target,
   UsersRound,
   X,
@@ -123,14 +141,19 @@ import {
 import {Toast} from 'vant';
 import myAxios from '../plugins/myAxios';
 import type {UserType} from '../models/user';
+import {getCurrentUser} from '../services/user';
+import {getCurrentUserState} from '../states/user';
+import {getContactedUserIds, markUserContacted} from '../services/privateChat';
 
 type Partner = Omit<UserType, 'tags'> & {tags: string[]};
 
 const router = useRouter();
+const currentUser = ref<UserType | null>(null);
 const userList = ref<Partner[]>([]);
 const currentIndex = ref(0);
 const loading = ref(true);
 const fallbackAvatar = 'https://api.dicebear.com/8.x/initials/svg?seed=Code&backgroundColor=334155&fontFamily=Arial';
+const contactedUserIds = ref<number[]>(getContactedUserIds());
 
 const normalizeTags = (rawTags: unknown): string[] => {
   if (!rawTags) return [];
@@ -143,8 +166,13 @@ const normalizeTags = (rawTags: unknown): string[] => {
   }
 };
 
+const hasUserTags = computed(() => {
+  return normalizeTags(currentUser.value?.tags).length > 0;
+});
+
 const currentPartner = computed(() => userList.value[currentIndex.value] ?? null);
 const visibleTags = computed(() => currentPartner.value?.tags.slice(0, 4) ?? []);
+const currentPartnerContacted = computed(() => contactedUserIds.value.includes(Number(currentPartner.value?.id)));
 const recommendationScore = computed(() => Math.max(78, 96 - currentIndex.value * 3));
 const matchReasons = computed(() => {
   const partner = currentPartner.value;
@@ -158,6 +186,12 @@ const matchReasons = computed(() => {
 const loadMatches = async () => {
   loading.value = true;
   try {
+    currentUser.value = getCurrentUserState() ?? await getCurrentUser();
+    if (!hasUserTags.value) {
+      userList.value = [];
+      currentIndex.value = 0;
+      return;
+    }
     const response = await myAxios.get('/user/match', {params: {num: 20}});
     userList.value = Array.isArray(response?.data)
       ? response.data.map((user: UserType) => ({...user, tags: normalizeTags(user.tags)}))
@@ -170,6 +204,10 @@ const loadMatches = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+const goToAddTags = () => {
+  router.push('/user/update');
 };
 
 const formatUserName = (partner: Partner) => {
@@ -209,6 +247,8 @@ const contactPartner = async () => {
     });
     if (res?.code === 0 && res?.data) {
       const session = res.data;
+      markUserContacted(partner.id);
+      contactedUserIds.value = getContactedUserIds();
       const targetName = session.targetUser?.userName || partner.username || partner.userAccount || '该拍档';
       const targetAvatar = session.targetUser?.avatarUrl || partner.avatarUrl || '';
       router.push({
@@ -568,45 +608,79 @@ onMounted(loadMatches);
   box-shadow: 0 12px 24px rgba(2, 6, 23, 0.25);
 }
 
+.match-action--contacted {
+  color: #166534;
+  background: #dcfce7;
+}
+
 .match-empty {
   display: flex;
   width: 100%;
-  min-height: 360px;
+  min-height: 400px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: 40px 20px;
+  box-sizing: border-box;
   color: #64748b;
   text-align: center;
 }
 
+.match-empty__icon-wrap {
+  display: grid;
+  width: 96px;
+  height: 96px;
+  place-items: center;
+  border: 1px solid rgba(96, 165, 250, 0.25);
+  border-radius: 50%;
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.1);
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.35), 0 0 24px rgba(59, 130, 246, 0.16);
+}
+
 .match-empty h2 {
-  margin: 18px 0 6px;
+  margin: 20px 0 8px;
   color: #f8fafc;
-  font-size: 18px;
+  font-size: 19px;
+  font-weight: 700;
 }
 
 .match-empty p {
-  max-width: 280px;
+  max-width: 300px;
   margin: 0;
   color: #94a3b8;
   font-size: 13px;
-  line-height: 20px;
+  line-height: 22px;
 }
 
-.match-empty button {
+.match-empty__btn {
   display: flex;
-  height: 44px;
+  height: 46px;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  margin-top: 22px;
-  padding: 0 18px;
+  margin-top: 24px;
+  padding: 0 24px;
   border: 0;
   border-radius: 999px;
   color: #0f172a;
   background: #ffffff;
+  box-shadow: 0 10px 20px rgba(2, 6, 23, 0.25);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.match-empty__btn:active {
+  transform: scale(0.96);
+}
+
+.match-empty__btn--primary {
+  color: #ffffff;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.35);
 }
 
 .match-card--loading {

@@ -13,7 +13,16 @@
           </van-tag>
         </template>
         <template #footer>
-          <van-button size="mini" plain type="primary">联系我</van-button>
+          <van-button
+            size="mini"
+            plain
+            type="primary"
+            :class="{ 'contact-button--contacted': isUserContacted(user.id) }"
+            :loading="contactingUserId === user.id"
+            @click="contactUser(user)"
+          >
+            {{ isUserContacted(user.id) ? '已联系' : '联系我' }}
+          </van-button>
         </template>
       </van-card>
     </van-skeleton>
@@ -21,7 +30,12 @@
 </template>
 
 <script setup lang="ts">
+import {ref} from 'vue';
+import {useRouter} from 'vue-router';
+import {Toast} from 'vant';
+import myAxios from '../plugins/myAxios';
 import {UserType} from "../models/user";
+import {getContactedUserIds, markUserContacted} from '../services/privateChat';
 
 interface UserCardListProps {
   loading: boolean;
@@ -33,6 +47,40 @@ const props = withDefaults(defineProps<UserCardListProps>(), {
   // @ts-ignore
   userList: [] as UserType[],
 });
+
+const router = useRouter();
+const contactedUserIds = ref<number[]>(getContactedUserIds());
+const contactingUserId = ref<number | null>(null);
+const isUserContacted = (userId: number) => contactedUserIds.value.includes(Number(userId));
+
+const contactUser = async (user: UserType) => {
+  if (!user?.id || contactingUserId.value !== null) return;
+  contactingUserId.value = Number(user.id);
+  try {
+    const res: any = await myAxios.post('/chat/private/start', {targetUserId: Number(user.id)});
+    if (res?.code !== 0 || !res?.data) {
+      Toast.fail(res?.description || res?.message || '发起私聊失败');
+      return;
+    }
+    const session = res.data;
+    markUserContacted(user.id);
+    contactedUserIds.value = getContactedUserIds();
+    router.push({
+      path: '/chat/private',
+      query: {
+        sessionId: String(session.sessionId),
+        targetUserId: String(user.id),
+        targetUsername: session.targetUser?.userName || user.username || '',
+        targetAvatarUrl: session.targetUser?.avatarUrl || user.avatarUrl || '',
+        isOnline: session.isTargetOnline ? '1' : '0',
+      },
+    });
+  } catch {
+    Toast.fail('请求失败，请稍后重试');
+  } finally {
+    contactingUserId.value = null;
+  }
+};
 
 </script>
 
@@ -127,6 +175,12 @@ const props = withDefaults(defineProps<UserCardListProps>(), {
   border-color: rgba(29, 144, 245, 0.35);
   border-radius: 999px;
   font-weight: 400;
+}
+
+.mall-user-card :deep(.contact-button--contacted) {
+  color: #86efac;
+  border-color: rgba(74, 222, 128, 0.38);
+  background: rgba(34, 197, 94, 0.14);
 }
 
 .mall-user-card :deep(.van-button--primary) {

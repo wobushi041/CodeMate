@@ -36,89 +36,90 @@
       </button>
     </div>
 
-    <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
-      <div v-if="loading && !userList.length" class="partner-list">
-        <div v-for="item in 4" :key="item" class="partner-card partner-card--loading">
-          <span class="loading-avatar" />
-          <div class="loading-lines"><span /><span /><span /></div>
-        </div>
+    <div v-if="loading && !userList.length" class="partner-list">
+      <div v-for="item in 4" :key="item" class="partner-card partner-card--loading">
+        <span class="loading-avatar" />
+        <div class="loading-lines"><span /><span /><span /></div>
       </div>
+    </div>
 
-      <template v-else-if="filteredUsers.length">
-        <div class="partner-list">
-          <article
-            v-for="(user, index) in filteredUsers"
-            :key="user.id"
-            class="partner-card"
-            :class="{ 'partner-card--featured': index === 1 }"
-          >
-            <div class="partner-avatar-wrap">
-              <img
-                class="partner-avatar"
-                :src="user.avatarUrl || fallbackAvatar"
-                :alt="user.username"
-                @error="onAvatarError"
-              />
-            </div>
-
-            <div class="partner-info">
-              <div>
-                <h3>{{ formatUserName(user) }}</h3>
-                <p>寻找项目队友</p>
-                <div class="partner-tags">
-                  <span v-for="tag in user.tags" :key="tag">{{ tag }}</span>
-                </div>
-              </div>
-              <div class="contact-row">
-                <button
-                  type="button"
-                  :disabled="contactingUserId === user.id"
-                  @click.stop="contactUser(user)"
-                >
-                  <LoaderCircle v-if="contactingUserId === user.id" class="is-spinning" :size="16" />
-                  <Send v-else :size="16" :stroke-width="1.9" />
-                  <span>{{ contactingUserId === user.id ? '发起中...' : '联系我' }}</span>
-                </button>
-              </div>
-            </div>
-          </article>
-        </div>
-
-        <!-- 滑动到底部自然停留在第 20 条卡片处的分页状态区 -->
-        <div
-          class="scroll-load-status"
-          :class="{ 'scroll-load-status--finished': finished }"
-          @click="!finished && !loadingMore && onLoadNextPage()"
+    <template v-else-if="filteredUsers.length">
+      <div class="partner-list">
+        <article
+          v-for="(user, index) in filteredUsers"
+          :key="user.id"
+          class="partner-card"
+          :class="{ 'partner-card--featured': index === 1 }"
         >
-          <template v-if="loadingMore">
-            <LoaderCircle class="is-spinning" :size="16" />
-            <span>正在加载下 20 位伙伴...</span>
-          </template>
-          <template v-else-if="finished">
-            <span>— 没有更多推荐伙伴了 —</span>
-          </template>
-          <template v-else>
-            <span>上拉或触底加载下 20 位伙伴</span>
-          </template>
-        </div>
-      </template>
+          <div class="partner-avatar-wrap">
+            <img
+              class="partner-avatar"
+              :src="user.avatarUrl || fallbackAvatar"
+              :alt="user.username"
+              @error="onAvatarError"
+            />
+          </div>
 
-      <div v-else class="partner-empty">
-        <UsersRound :size="58" :stroke-width="1.3" />
-        <p>没有找到符合条件的伙伴</p>
+          <div class="partner-info">
+            <div>
+              <h3>{{ formatUserName(user) }}</h3>
+              <p>寻找项目队友</p>
+              <div class="partner-tags">
+                <span v-for="tag in user.tags" :key="tag">{{ tag }}</span>
+              </div>
+            </div>
+            <div class="contact-row">
+              <button
+                type="button"
+                :class="{ 'contact-button--contacted': isUserContacted(user.id) }"
+                :disabled="contactingUserId === user.id"
+                @click.stop="contactUser(user)"
+              >
+                <LoaderCircle v-if="contactingUserId === user.id" class="is-spinning" :size="16" />
+                <Send v-else-if="!isUserContacted(user.id)" :size="16" :stroke-width="1.9" />
+                <Check v-else :size="16" :stroke-width="2" />
+                <span>{{ contactingUserId === user.id ? '发起中...' : isUserContacted(user.id) ? '已联系' : '联系我' }}</span>
+              </button>
+            </div>
+          </div>
+        </article>
       </div>
-    </van-pull-refresh>
+
+      <!-- 滑动到底部自然停留在第 20 条卡片处的分页状态区 -->
+      <div
+        class="scroll-load-status"
+        :class="{ 'scroll-load-status--finished': finished }"
+        @click="!finished && !loadingMore && onLoadNextPage()"
+      >
+        <template v-if="loadingMore">
+          <LoaderCircle class="is-spinning" :size="16" />
+          <span>正在加载下 20 位伙伴...</span>
+        </template>
+        <template v-else-if="finished">
+          <span>— 没有更多推荐伙伴了 —</span>
+        </template>
+        <template v-else>
+          <span>上拉或触底加载下 20 位伙伴</span>
+        </template>
+      </div>
+    </template>
+
+    <div v-else class="partner-empty">
+      <UsersRound :size="58" :stroke-width="1.3" />
+      <p>没有找到符合条件的伙伴</p>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { ArrowDownUp, Bell, LoaderCircle, Send, UsersRound } from 'lucide-vue-next';
+import { ArrowDownUp, Bell, Check, LoaderCircle, Send, UsersRound } from 'lucide-vue-next';
 import AppSearchBox from '../components/AppSearchBox.vue';
 import { Toast } from 'vant';
 import myAxios from '../plugins/myAxios';
 import type { UserType } from '../models/user';
+import { getContactedUserIds, markUserContacted } from '../services/privateChat';
 
 const router = useRouter();
 
@@ -130,12 +131,12 @@ const activeFilter = ref('全部');
 const sortDescending = ref(true);
 const userList = ref<Partner[]>([]);
 const loading = ref(true);
-const refreshing = ref(false);
 const pageNum = ref(1);
 const pageSize = 20;
 const total = ref(0);
 const loadingMore = ref(false);
 const finished = ref(false);
+const contactedUserIds = ref<number[]>(getContactedUserIds());
 let requestSeq = 0;
 
 const filterTags: FilterTag[] = [
@@ -170,10 +171,10 @@ const filteredUsers = computed(() => {
   return sortDescending.value ? result : [...result].reverse();
 });
 
-const loadData = async (targetPage = 1, isRefresh = false) => {
+const loadData = async (targetPage = 1) => {
   const currentRequestSeq = ++requestSeq;
   if (targetPage === 1) {
-    if (!isRefresh && !userList.value.length) {
+    if (!userList.value.length) {
       loading.value = true;
     }
   } else {
@@ -226,21 +227,20 @@ const loadData = async (targetPage = 1, isRefresh = false) => {
     if (currentRequestSeq === requestSeq) {
       loading.value = false;
       loadingMore.value = false;
-      refreshing.value = false;
     }
   }
 };
 
 const onLoadNextPage = async () => {
-  if (loading.value || loadingMore.value || finished.value || refreshing.value) {
+  if (loading.value || loadingMore.value || finished.value) {
     return;
   }
-  await loadData(pageNum.value + 1, false);
+  await loadData(pageNum.value + 1);
 };
 
 const onContentScroll = () => {
   const el = document.getElementById('content');
-  if (!el || loading.value || loadingMore.value || finished.value || refreshing.value) {
+  if (!el || loading.value || loadingMore.value || finished.value) {
     return;
   }
   // 严格在滑到底部（距离底端 <= 20px）时才触发下一页，保持前 20 条自然完整展示
@@ -262,10 +262,6 @@ onBeforeUnmount(() => {
 
 const formatUserName = (user: Partner) => user.planetCode ? `${user.username}(${user.planetCode})` : user.username;
 const onAvatarError = (event: Event) => { const image = event.target as HTMLImageElement; if (image.src !== fallbackAvatar) image.src = fallbackAvatar; };
-const onRefresh = async () => {
-  await loadData(1, true);
-  Toast.success('刷新成功');
-};
 const toggleSort = () => { sortDescending.value = !sortDescending.value; };
 const showNotice = () => Toast('暂无新通知');
 const contactingUserId = ref<number | null>(null);
@@ -285,6 +281,8 @@ const contactUser = async (user: Partner) => {
     });
     if (res?.code === 0 && res?.data) {
       const session = res.data;
+      markUserContacted(user.id);
+      contactedUserIds.value = getContactedUserIds();
       const targetName = session.targetUser?.userName || user.username || '该伙伴';
       const targetAvatar = session.targetUser?.avatarUrl || user.avatarUrl || '';
       router.push({
@@ -308,6 +306,8 @@ const contactUser = async (user: Partner) => {
     contactingUserId.value = null;
   }
 };
+
+const isUserContacted = (userId: number) => contactedUserIds.value.includes(Number(userId));
 </script>
 
 <style scoped>
@@ -330,8 +330,6 @@ const contactUser = async (user: Partner) => {
 .partner-section-heading h2 span { color: #94a3b8; font-size: 14px; font-weight: 400; }
 .partner-section-heading button { display: flex; align-items: center; gap: 6px; padding: 0; border: 0; color: #f8fafc; background: transparent; font: inherit; font-size: 14px; font-weight: 500; white-space: nowrap; }
 .partner-section-heading button svg { color: #94a3b8; }
-.home-page :deep(.van-pull-refresh),
-.home-page :deep(.van-pull-refresh__track) { width: 100%; min-width: 0; }
 .partner-list { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; width: 100%; min-width: 0; gap: 16px; }
 .partner-card { display: flex; width: 100%; max-width: 100%; min-width: 0; margin-right: auto; margin-left: auto; gap: 16px; min-height: 112px; box-sizing: border-box; overflow: hidden; padding: 16px; border: 1px solid transparent; border-radius: 16px; background: #1e293b; transition: transform .15s ease, box-shadow .15s ease; }
 .partner-card--featured { border-color: rgba(255,255,255,.2); box-shadow: 0 10px 22px rgba(2,6,23,.22); }
@@ -359,6 +357,7 @@ const contactUser = async (user: Partner) => {
 @keyframes loading-pulse { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .is-spinning { animation: spin 0.8s linear infinite; }
+.contact-row button.contact-button--contacted { color: #86efac; background: rgba(34, 197, 94, 0.14); border-color: rgba(74, 222, 128, 0.3); }
 .contact-row button:disabled { opacity: 0.65; cursor: not-allowed; }
 .scroll-load-status {
   display: flex;
