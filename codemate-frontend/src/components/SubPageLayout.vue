@@ -90,19 +90,19 @@ defineExpose({
   flex-direction: column;
   overflow: hidden;
   color: #f8fafc;
-  background: #0b1120;
+  background: #0f172a;
   font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .team-page-header {
   position: relative;
   display: flex;
-  min-height: 84px;
+  min-height: 54px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   padding: 22px 16px 12px;
-  background: #0b1120;
+  background: #0f172a;
 }
 
 .team-page-back {
@@ -165,7 +165,7 @@ defineExpose({
   flex: 0 0 auto;
   box-sizing: border-box;
   padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, rgba(11, 17, 32, 0), #0b1120 24%);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0), #0f172a 24%);
 }
 
 .team-page-dock--tabbar {
