@@ -133,6 +133,16 @@ const scrollToBottom = () => {
   });
 };
 
+const removeUnpairedBacktick = (text: string) => {
+  const positions = Array.from(text.matchAll(/`+/g))
+    .filter((match) => match[0].length === 1 && text[(match.index || 0) - 1] !== '\\')
+    .map((match) => match.index || 0);
+  if (positions.length % 2 === 0) return text;
+
+  const last = positions[positions.length - 1];
+  return text.slice(0, last) + text.slice(last + 1);
+};
+
 const normalizeMarkdown = (text: string) => {
   const source = (text || '').replace(/\\n/g, '\n').replace(/\r\n/g, '\n');
   const orderedListMarker = String.raw`\d{1,2}[.．、](?!\d)`;
@@ -143,7 +153,7 @@ const normalizeMarkdown = (text: string) => {
       if (part.startsWith('```')) {
         return part;
       }
-      return part
+      const normalizedPart = part
         .replace(/\*\*(?=[^\n*]{1,48}\n\s*[-*+]\s+)/g, '')
         .replace(/(\n\s*[-*+]\s+[^\n*]{1,80})\*\*/g, '$1')
         .replace(/([^\n])\s*(#{1,6}\s+)/g, '$1\n\n$2')
@@ -156,6 +166,7 @@ const normalizeMarkdown = (text: string) => {
         .replace(/([^\n])\s+([-*+]\s+)/g, '$1\n$2')
         .replace(new RegExp(`([^\\n])\\s*(${chineseListMarker})\\s*`, 'g'), '$1\n$2 ')
         .replace(/(^|\s)\*\*(?=\S)(?![\s\S]*\*\*)/g, '$1');
+      return removeUnpairedBacktick(normalizedPart);
     })
     .join('');
 };
@@ -185,7 +196,41 @@ const sendAndStream = async (message: string, silent = false) => {
     messages.value.push({ role: 'user', content: message, createdAt: Date.now() });
   }
   messages.value.push({ role: 'ai', content: '', createdAt: Date.now() });
+  const aiIndex = messages.value.length - 1;
   scrollToBottom();
+
+  const revealQueue: string[] = [];
+  let revealIndex = 0;
+  let revealTimer: number | null = null;
+  let resolveReveal: (() => void) | null = null;
+
+  const enqueueText = (text: string) => {
+    if (!text) return;
+    for (const char of text) revealQueue.push(char);
+    if (revealTimer !== null) return;
+
+    revealTimer = window.setInterval(() => {
+      const remaining = revealQueue.length - revealIndex;
+      const count = Math.min(12, Math.max(1, Math.ceil(remaining / 80)));
+      messages.value[aiIndex].content += revealQueue.slice(revealIndex, revealIndex + count).join('');
+      revealIndex += count;
+      scrollToBottom();
+
+      if (revealIndex === revealQueue.length) {
+        window.clearInterval(revealTimer!);
+        revealTimer = null;
+        revealQueue.length = 0;
+        revealIndex = 0;
+        resolveReveal?.();
+        resolveReveal = null;
+      }
+    }, 25);
+  };
+
+  const waitForReveal = () => new Promise<void>((resolve) => {
+    if (revealTimer === null) resolve();
+    else resolveReveal = resolve;
+  });
 
   try {
     const baseUrl = import.meta.env.DEV ? 'http://localhost:8080/api' : '';
@@ -197,27 +242,52 @@ const sendAndStream = async (message: string, silent = false) => {
       throw new Error(`HTTP ${response.status}`);
     }
 
-    const reader = response.body!.getReader();
+    if (!response.body) throw new Error('响应流不可用');
+    const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    let aiMessage = '';
+    let pendingLine = '';
+    let eventData: string[] = [];
+
+    const dispatchEvent = () => {
+      if (!eventData.length) return;
+      const text = eventData.join('\n');
+      eventData = [];
+      enqueueText(text);
+    };
+
+    const consumeLine = (line: string) => {
+      const content = line.endsWith('\r') ? line.slice(0, -1) : line;
+      if (!content) {
+        dispatchEvent();
+      } else if (content.startsWith('data:')) {
+        eventData.push(content.slice(5).replace(/^ /, ''));
+      }
+    };
+
+    const consumeChunk = (chunk: string, final = false) => {
+      pendingLine += chunk;
+      let newlineIndex = pendingLine.indexOf('\n');
+      while (newlineIndex !== -1) {
+        consumeLine(pendingLine.slice(0, newlineIndex));
+        pendingLine = pendingLine.slice(newlineIndex + 1);
+        newlineIndex = pendingLine.indexOf('\n');
+      }
+      if (final) {
+        if (pendingLine) consumeLine(pendingLine);
+        dispatchEvent();
+      }
+    };
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-
-      const chunk = decoder.decode(value);
-      const lines = chunk.split('\n');
-
-      for (const line of lines) {
-        if (line.startsWith('data:')) {
-          aiMessage += line.slice(5);
-          messages.value[messages.value.length - 1].content = aiMessage;
-        }
-      }
-      scrollToBottom();
+      consumeChunk(decoder.decode(value, { stream: true }));
     }
+    consumeChunk(decoder.decode(), true);
+    await waitForReveal();
   } catch (e: any) {
-    messages.value[messages.value.length - 1].content = '请求失败：' + (e.message || '网络错误');
+    if (revealTimer !== null) window.clearInterval(revealTimer);
+    messages.value[aiIndex].content = '请求失败：' + (e.message || '网络错误');
   } finally {
     loading.value = false;
   }
