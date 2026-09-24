@@ -5,20 +5,24 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * 用户加入队伍请求体
+ * 用户加入队伍请求
+ *
+ * @author wobushi041
  */
 @Data
 public class TeamJoinRequest implements Serializable {
 
-    private static final long serialVersionUID = -1460976109170238609L;
-
     /**
-     * id
+     * 队伍 id
      */
     private Long teamId;
 
     /**
-     * 密码
+     * 队伍密码
      */
     private String password;
+
+    /// 序列化字段 ///
+    private static final long serialVersionUID = -1460976109170238609L;
+
 }

@@ -1,6 +1,10 @@
 package com.wobushi041.codemate.model.domain;
 
-import com.baomidou.mybatisplus.annotation.*;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
+import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -9,20 +13,16 @@ import java.util.Date;
 
 /**
  * 用户实体
+ *
+ * @author wobushi041
  */
 @TableName(value = "user")
 @Data
 @NoArgsConstructor
 public class User implements Serializable {
-    /**
-     * 序列化版本号
-     */
-    @TableField(exist = false)
-    private static final long serialVersionUID = 1L;
 
     /**
-     * id
-     * 修改 id 的类型，从包装类的 Long 变为基础类的 long，避免频繁判空，userMapper.updataById(user) 方法会自动处理
+     * 用户 id
      */
     @TableId(type = IdType.AUTO)
     private long id;
@@ -33,7 +33,7 @@ public class User implements Serializable {
     private String username;
 
     /**
-     * 账号
+     * 登录账号
      */
     private String userAccount;
 
@@ -48,22 +48,22 @@ public class User implements Serializable {
     private Integer gender;
 
     /**
-     * 密码
+     * 登录密码
      */
     private String userPassword;
 
     /**
-     * 电话
+     * 电话号码
      */
     private String phone;
 
     /**
-     * 邮箱
+     * 电子邮箱
      */
     private String email;
 
     /**
-     * 状态 0 - 正常
+     * 用户状态 0 - 正常
      */
     private Integer userStatus;
 
@@ -73,12 +73,12 @@ public class User implements Serializable {
     private Date createTime;
 
     /**
-     *
+     * 更新时间
      */
     private Date updateTime;
 
     /**
-     * 是否删除
+     * 是否删除 0 - 未删除 1 - 已删除
      */
     @TableLogic
     @TableField("isDelete")
@@ -95,8 +95,12 @@ public class User implements Serializable {
     private String planetCode;
 
     /**
-     * tag标签
+     * 标签列表 JSON
      */
     private String tags;
-}
 
+    /// 序列化字段 ///
+    @TableField(exist = false)
+    private static final long serialVersionUID = 1L;
+
+}

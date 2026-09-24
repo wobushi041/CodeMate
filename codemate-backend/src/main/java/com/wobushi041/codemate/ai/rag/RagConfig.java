@@ -9,36 +9,44 @@ import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.rag.content.retriever.EmbeddingStoreContentRetriever;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.EmbeddingStoreIngestor;
-import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.ResourceUtils;
 
+import jakarta.annotation.Resource;
 import java.io.File;
 import java.util.List;
 
 /**
  * RAG 检索增强生成配置
- * 加载编程文档 → 切段 → 向量化（all-minilm via Ollama） → 存入内存向量库
+ *
+ * @author wobushi041
  */
 @Configuration
 @Slf4j
 public class RagConfig {
 
+    /**
+     * 注入向量化模型依赖
+     */
     @Resource
     private EmbeddingModel embeddingModel;
 
+    /**
+     * 注入内存向量存储依赖
+     */
     @Resource
     private EmbeddingStore<TextSegment> embeddingStore;
 
     /**
-     * 内容检索器
-     * 加载 resources/docs/ 下的编程文档，切段后向量化存储
+     * 构建并注册 RAG 内容检索器，加载本地编程文档并切段向量化入库
+     *
+     * @return 内容检索器实例；若文档目录不存在或向量化失败则返回 null
      */
     @Bean
     public ContentRetriever contentRetriever() {
-        // 1. 加载文档
+        // 解析类路径下的 RAG 文档目录
         File docsDir;
         try {
             docsDir = ResourceUtils.getFile("classpath:docs");
@@ -47,22 +55,23 @@ public class RagConfig {
             return null;
         }
 
+        // 校验文档目录是否存在且有效
         if (!docsDir.exists() || !docsDir.isDirectory()) {
             log.warn("RAG 文档目录不存在: {}，跳过 RAG 初始化", docsDir.getPath());
             return null;
         }
 
+        // 加载目录下的全部文档并判空
         List<Document> documents = FileSystemDocumentLoader.loadDocuments(docsDir.toPath());
         if (documents.isEmpty()) {
             log.warn("RAG 文档目录为空，跳过向量化");
             return null;
         }
 
-        // 2. 文档切段：每段最大 1000 字符，重叠 200 字符
-        //nomic-embed-text 上下文窗口 8192 tokens，中文友好
+        // 配置文档段落切分器：每段最大 1000 个字符，重叠 200 个字符
         DocumentByParagraphSplitter splitter = new DocumentByParagraphSplitter(1000, 200);
 
-        // 3. 文档加载器：切段 → 拼接文件名 → 向量化 → 存入向量库
+        // 构建向量入库器：切段后拼接文件名并调用向量模型写入存储
         EmbeddingStoreIngestor ingestor = EmbeddingStoreIngestor.builder()
                 .documentSplitter(splitter)
                 .textSegmentTransformer(segment -> TextSegment.from(
@@ -72,6 +81,7 @@ public class RagConfig {
                 .embeddingStore(embeddingStore)
                 .build();
 
+        // 执行文档向量化入库
         try {
             ingestor.ingest(documents);
             log.info("RAG 文档加载完成，共 {} 篇文档", documents.size());
@@ -80,7 +90,7 @@ public class RagConfig {
             return null;
         }
 
-        // 4. 内容检索器
+        // 构建并返回基于内存向量存储的内容检索器
         return EmbeddingStoreContentRetriever.builder()
                 .embeddingStore(embeddingStore)
                 .embeddingModel(embeddingModel)
@@ -88,4 +98,5 @@ public class RagConfig {
                 .minScore(0.75)
                 .build();
     }
+
 }

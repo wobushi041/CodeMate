@@ -12,10 +12,8 @@ import java.io.Serializable;
 @Data
 public class PrivateChatSessionVO implements Serializable {
 
-    private static final long serialVersionUID = 1L;
-
     /**
-     * 会话 ID (sessionId)
+     * 会话 id
      */
     private Long sessionId;
 
@@ -43,4 +41,8 @@ public class PrivateChatSessionVO implements Serializable {
      * 会话创建时间
      */
     private String createTime;
+
+    /// 序列化字段 ///
+    private static final long serialVersionUID = 1L;
+
 }

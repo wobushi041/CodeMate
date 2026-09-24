@@ -10,29 +10,58 @@ import org.springframework.util.StopWatch;
 import jakarta.annotation.Resource;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
- * 导入用户任务
+ * 批量导入用户数据任务组件
+ *
+ * @author wobushi041
  */
 @Data
 @Component
 public class InsertUsers {
 
-  public   final int INSERT_COUNT = 5000;
+    /**
+     * 单线程循环插入的用户总数量
+     */
+    public final int INSERT_COUNT = 5000;
+
+    /**
+     * 注入用户持久层依赖
+     */
     @Resource
     private UserMapper userMapper;
+
+    /**
+     * 注入用户服务依赖
+     */
     @Resource
     private UserService userService;
 
     /**
-     * 批量插入用户
+     * 并发批量插入用户专用自定义线程池
      */
-//    @Scheduled(initialDelay = 5000, fixedRate = Long.MAX_VALUE)
+    private ExecutorService executorService = new ThreadPoolExecutor(
+            16,
+            1000,
+            10000,
+            TimeUnit.MINUTES,
+            new ArrayBlockingQueue<>(10000)
+    );
+
+    /**
+     * 单线程循环批量插入测试用户数据
+     */
     public void doInsertUsers() {
+        // 启动秒表计时器
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
 
+        // 循环构造并逐条插入测试用户记录
         for (int i = 0; i < INSERT_COUNT; i++) {
             User user = new User();
             user.setUsername("041041");
@@ -48,36 +77,26 @@ public class InsertUsers {
             user.setTags("");
             userMapper.insert(user);
         }
+
+        // 停止计时并打印总耗时
         stopWatch.stop();
         System.out.println("循环插入执行时间（毫秒）：" + stopWatch.getLastTaskTimeMillis());
     }
 
-
-
-    // 线程池的设置ExecutorService 接口:Java 中用于执行异步任务的接口。
-    private ExecutorService executorService = new ThreadPoolExecutor(
-            16, // corePoolSize: 核心线程数。线程池中始终保持活跃的线程数量，即使它们处于空闲状态。
-            1000, // maximumPoolSize: 最大线程数。线程池中允许的最大线程数量。
-            10000, // keepAliveTime: 当线程数超过核心线程数时，这是非核心线程空闲前的最大存活时间。
-            TimeUnit.MINUTES, // 时间单位。上面的 keepAliveTime 的单位。
-            new ArrayBlockingQueue<>(10000) // 工作队列。存放待执行任务的阻塞队列，具有先进先出等特性的阵列支持的有界队列。
-    );
-
     /**
-     * 使用并发方法批量插入用户数据。
-     * 通过分割任务并利用CompletableFuture与线程池，实现高效的并行数据插入。
-     * 此方法尤其适用于处理大量数据插入操作，能显著提高性能。
+     * 使用自定义线程池与 CompletableFuture 并发批量插入用户数据
      */
     public void doConcurrencyInsertUser() {
+        // 启动秒表计时并定义并发分批参数
         StopWatch stopWatch = new StopWatch();
-        stopWatch.start(); // 开始计时
-        final int INSERT_NUM = 100000; // 总插入数据量
-        final int batchSize = 5000; // 每批次处理的数据量
+        stopWatch.start();
+        final int INSERT_NUM = 100000;
+        final int batchSize = 5000;
         List<CompletableFuture<Void>> futureList = new ArrayList<>();
-        // 根据批次大小分割任务
+
+        // 按批次构建用户数据并提交异步批量保存任务
         for (int i = 0; i < Math.ceil((double) INSERT_NUM / batchSize); i++) {
             List<User> userList = new ArrayList<>();
-            // 创建每批次的用户数据
             for (int j = 0; j < batchSize; j++) {
                 User user = new User();
                 user.setUsername("041041");
@@ -93,16 +112,17 @@ public class InsertUsers {
                 user.setTags("java，python，c++，go");
                 userMapper.insert(user);
             }
-            // 异步执行数据库插入操作
             CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
                 System.out.println("ThreadName：" + Thread.currentThread().getName());
                 userService.saveBatch(userList, batchSize);
             }, executorService);
             futureList.add(future);
         }
-        // 等待所有异步任务完成
+
+        // 阻塞等待所有并发批次任务执行完毕并输出总耗时
         CompletableFuture.allOf(futureList.toArray(new CompletableFuture[0])).join();
-        stopWatch.stop(); // 停止计时
+        stopWatch.stop();
         System.out.println("并发批量插入执行时间（毫秒）：" + stopWatch.getLastTaskTimeMillis());
     }
+
 }

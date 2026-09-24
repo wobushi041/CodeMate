@@ -11,43 +11,33 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 聊天室通道会话管理器
  *
- * 负责在内存中统一维护各队伍聊天室与在线客户端 Netty Channel 的映射关系，
- * 提供用户加入房间、离开房间、连接检索、在线状态判断以及多端旧连接互踢等管理能力。
- *
- * 拓扑结构：
- * 队伍 ID (teamId)
- *    ├── 用户 1 (userId_1) -> 客户端 Channel_1
- *    ├── 用户 2 (userId_2) -> 客户端 Channel_2
- *    └── ...
- *
- * @author 041
+ * @author wobushi041
  */
 @Component
 public class ChatChannelManager {
 
     /**
-     * 维护队伍房间与其内部所有用户在线 Channel 的二级并发映射表
-     * 格式: teamId -> (userId -> Channel)
+     * 维护队伍房间与其内部所有用户在线 Channel 的二级并发映射表（teamId -> (userId -> Channel)）
      */
     private final Map<Long, Map<Long, Channel>> roomUserChannels = new ConcurrentHashMap<>();
 
     /**
-     * 全局用户在线 Channel 映射表 (按 userId 直接关联，支持单方开启通道与点对点直推)
-     * 格式: userId -> Channel
+     * 全局用户在线 Channel 映射表（userId -> Channel）
      */
     private final Map<Long, Channel> userChannels = new ConcurrentHashMap<>();
 
     /**
-     * 用户加入指定队伍房间
-     *
-     * 若该用户在该队伍中已存在旧的连接，会主动关闭旧连接以保障单一会话活跃。
+     * 将用户加入指定队伍房间并维护单一活跃连接
      *
      * @param teamId  队伍 ID
      * @param userId  用户 ID
      * @param channel 客户端网络通道
      */
     public void joinRoom(long teamId, long userId, Channel channel) {
+        // 获取或初始化队伍房间的用户通道映射表
         Map<Long, Channel> userChannels = roomUserChannels.computeIfAbsent(teamId, key -> new ConcurrentHashMap<>());
+
+        // 绑定新通道，若存在未关闭的旧通道则主动关闭以互踢旧连接
         Channel oldChannel = userChannels.put(userId, channel);
         if (oldChannel != null && oldChannel != channel && oldChannel.isOpen()) {
             oldChannel.close();
@@ -62,10 +52,13 @@ public class ChatChannelManager {
      * @return 活跃的 Channel 实例；若不存在或已非活跃则返回 null
      */
     public Channel get(long teamId, long userId) {
+        // 获取队伍房间映射表并校验是否存在
         Map<Long, Channel> userChannels = roomUserChannels.get(teamId);
         if (userChannels == null) {
             return null;
         }
+
+        // 获取指定用户的通道并校验活跃状态
         Channel channel = userChannels.get(userId);
         if (channel == null || !channel.isActive()) {
             return null;
@@ -80,10 +73,13 @@ public class ChatChannelManager {
      * @return 活跃 Channel 映射表（userId -> Channel）
      */
     public Map<Long, Channel> getRoomChannels(long teamId) {
+        // 查询队伍房间内的用户通道表，为空则返回空集合
         Map<Long, Channel> userChannels = roomUserChannels.get(teamId);
         if (userChannels == null || userChannels.isEmpty()) {
             return Collections.emptyMap();
         }
+
+        // 筛选出所有处于活跃状态的客户端通道
         Map<Long, Channel> activeChannels = new HashMap<>();
         userChannels.forEach((userId, channel) -> {
             if (channel != null && channel.isActive()) {
@@ -101,23 +97,25 @@ public class ChatChannelManager {
      * @return true 表示在线，false 表示离线
      */
     public boolean isOnline(long teamId, long userId) {
+        // 通过是否存在活跃通道判断用户房间在线状态
         return get(teamId, userId) != null;
     }
 
     /**
-     * 用户离开指定队伍房间
-     *
-     * 从房间用户列表中移除指定 Channel；若房间内已无任何在线成员，则清理并释放房间 Map 容器。
+     * 将用户移出指定队伍房间并在房间为空时释放容器
      *
      * @param teamId  队伍 ID
      * @param userId  用户 ID
      * @param channel 待移除的客户端网络通道
      */
     public void leaveRoom(long teamId, long userId, Channel channel) {
+        // 获取队伍房间的用户通道映射表
         Map<Long, Channel> userChannels = roomUserChannels.get(teamId);
         if (userChannels == null) {
             return;
         }
+
+        // 移除指定通道，若房间已无在线成员则回收房间映射表
         userChannels.remove(userId, channel);
         if (userChannels.isEmpty()) {
             roomUserChannels.remove(teamId, userChannels);
@@ -125,17 +123,18 @@ public class ChatChannelManager {
     }
 
     /**
-     * 注册用户全局活跃 Channel
-     *
-     * 当客户端通过 WebSocket 鉴权成功后调用。若该用户此前存在旧连接，主动关闭旧连接以保障单端最新活跃。
+     * 注册用户全局活跃 Channel 并关闭同账号旧连接
      *
      * @param userId  用户 ID
      * @param channel 客户端网络通道
      */
     public void registerUserChannel(Long userId, Channel channel) {
+        // 参数判空校验
         if (userId == null || channel == null) {
             return;
         }
+
+        // 写入全局通道表，若存在旧连接则主动关闭
         Channel oldChannel = userChannels.put(userId, channel);
         if (oldChannel != null && oldChannel != channel && oldChannel.isOpen()) {
             oldChannel.close();
@@ -149,9 +148,12 @@ public class ChatChannelManager {
      * @return 活跃的 Channel 实例；若不在线或非活跃则返回 null
      */
     public Channel getUserChannel(Long userId) {
+        // 参数判空校验
         if (userId == null) {
             return null;
         }
+
+        // 获取全局通道并校验活跃状态
         Channel channel = userChannels.get(userId);
         if (channel == null || !channel.isActive()) {
             return null;
@@ -166,20 +168,24 @@ public class ChatChannelManager {
      * @param channel 待移除的客户端网络通道
      */
     public void removeUserChannel(Long userId, Channel channel) {
+        // 参数判空校验
         if (userId == null || channel == null) {
             return;
         }
+
+        // 从全局通道表中精确移除目标通道
         userChannels.remove(userId, channel);
     }
 
     /**
-     * 检测指定用户是否在全局在线（具有活跃 WebSocket 连接）
+     * 检测指定用户是否在全局在线
      *
      * @param userId 用户 ID
-     * @return true-在线 false-离线
+     * @return true 表示在线，false 表示离线
      */
     public boolean isUserOnline(Long userId) {
+        // 通过是否存在全局活跃通道判断用户在线状态
         return getUserChannel(userId) != null;
     }
-}
 
+}

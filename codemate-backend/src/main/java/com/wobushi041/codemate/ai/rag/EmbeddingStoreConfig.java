@@ -7,13 +7,22 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 内存向量存储配置（独立拆出，避免与 RagConfig 循环依赖）
+ * 内存向量存储配置
+ *
+ * @author wobushi041
  */
 @Configuration
 public class EmbeddingStoreConfig {
 
+    /**
+     * 构建并注册基于内存的文本切片向量存储实例
+     *
+     * @return 内存向量存储实例
+     */
     @Bean
     public EmbeddingStore<TextSegment> embeddingStore() {
+        // 初始化内存向量存储实例
         return new InMemoryEmbeddingStore<>();
     }
+
 }

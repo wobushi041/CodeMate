@@ -4,13 +4,15 @@ import com.alibaba.excel.annotation.ExcelProperty;
 import lombok.Data;
 
 /**
- * 星球表格用户信息
+ * 星球表格用户信息映射模型
+ *
+ * @author wobushi041
  */
 @Data
 public class XingQiuTableUserInfo {
 
     /**
-     * id
+     * 星球成员编号
      */
     @ExcelProperty("成员编号")
     private String planetCode;

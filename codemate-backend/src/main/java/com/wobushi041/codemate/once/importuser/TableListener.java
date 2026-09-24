@@ -5,29 +5,34 @@ import com.alibaba.excel.read.listener.ReadListener;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Excel 读取监听
+ * Excel 星球用户表格读取监听器
+ *
+ * @author wobushi041
  */
 @Slf4j
 public class TableListener implements ReadListener<XingQiuTableUserInfo> {
 
     /**
-     * 这个每一条数据解析都会来调用
+     * 逐行解析 Excel 数据时触发回调处理
      *
-     * @param data    one row value. Is is same as {@link AnalysisContext#readRowHolder()}
-     * @param context
+     * @param data    当前行解析出的星球用户信息对象
+     * @param context EasyExcel 解析上下文对象
      */
     @Override
     public void invoke(XingQiuTableUserInfo data, AnalysisContext context) {
+        // 打印当前行解析出的用户数据
         System.out.println(data);
     }
 
     /**
-     * 所有数据解析完成了 都会来调用
+     * 全部 Excel 数据解析完成后触发收尾回调
      *
-     * @param context
+     * @param context EasyExcel 解析上下文对象
      */
     @Override
     public void doAfterAllAnalysed(AnalysisContext context) {
+        // 打印解析完成提示信息
         System.out.println("已解析完成");
     }
+
 }

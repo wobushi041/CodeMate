@@ -6,16 +6,15 @@ import java.io.Serializable;
 import java.util.Date;
 
 /**
- * 队伍更新请求对象。
- * 用于接收更新队伍信息的请求参数。
+ * 队伍更新请求
+ *
+ * @author wobushi041
  */
 @Data
 public class TeamUpdateRequest implements Serializable {
 
-    private static final long serialVersionUID = -8351268843240931365L;
-
     /**
-     * id
+     * 队伍 id
      */
     private Long id;
 
@@ -25,7 +24,7 @@ public class TeamUpdateRequest implements Serializable {
     private String name;
 
     /**
-     * 描述
+     * 队伍描述
      */
     private String description;
 
@@ -35,12 +34,16 @@ public class TeamUpdateRequest implements Serializable {
     private Date expireTime;
 
     /**
-     * 0 - 公开，1 - 私有，2 - 加密
+     * 队伍状态 0 - 公开 1 - 私有 2 - 加密
      */
     private Integer status;
 
     /**
-     * 密码
+     * 队伍密码
      */
     private String password;
+
+    /// 序列化字段 ///
+    private static final long serialVersionUID = -8351268843240931365L;
+
 }

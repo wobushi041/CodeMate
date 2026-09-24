@@ -8,17 +8,27 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 
+/**
+ * 推荐缓存值数据对象
+ *
+ * @author wobushi041
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class RecommendCacheValue implements Serializable {
 
-    private static final long serialVersionUID = 8743980324169666342L;
-
+    /**
+     * 用户推荐分页数据
+     */
     private Page<User> userPage;
 
     /**
-     * 逻辑过期时间戳，单位毫秒。
+     * 逻辑过期时间戳（毫秒）
      */
     private Long logicExpireTime;
+
+    /// 序列化字段 ///
+    private static final long serialVersionUID = 8743980324169666342L;
+
 }

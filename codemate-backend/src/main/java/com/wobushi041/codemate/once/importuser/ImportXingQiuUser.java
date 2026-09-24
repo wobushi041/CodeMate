@@ -8,17 +8,27 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * 导入星球用户到数据库
+ * 星球用户 Excel 导入与去重分析工具类
+ *
+ * @author wobushi041
  */
 public class ImportXingQiuUser {
 
+    /**
+     * 读取星球用户生产 Excel 文件并统计不重复用户昵称数量
+     *
+     * @param args 命令行启动参数
+     */
     public static void main(String[] args) {
-        // todo 记得改为自己的测试文件
+        // TODO: 记得改为自己的测试文件
         String fileName = "src/main/resources/prodExcel.xlsx";
-        // 这里 需要指定读用哪个class去读，然后读取第一个sheet 同步读取会自动finish
+
+        // 同步读取首个工作表的全部星球用户数据
         List<XingQiuTableUserInfo> userInfoList =
                 EasyExcel.read(fileName).head(XingQiuTableUserInfo.class).sheet().doReadSync();
         System.out.println("总数 = " + userInfoList.size());
+
+        // 过滤空昵称记录并按用户昵称分组统计重复项
         Map<String, List<XingQiuTableUserInfo>> listMap =
                 userInfoList.stream()
                         .filter(userInfo -> StringUtils.isNotEmpty(userInfo.getUsername()))
@@ -31,4 +41,5 @@ public class ImportXingQiuUser {
         }
         System.out.println("不重复昵称数 = " + listMap.keySet().size());
     }
+
 }

@@ -1,6 +1,5 @@
 package com.wobushi041.codemate.service.impl;
 
-import kotlin.Pair;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.google.gson.Gson;
@@ -8,24 +7,29 @@ import com.google.gson.reflect.TypeToken;
 import com.wobushi041.codemate.common.ErrorCode;
 import com.wobushi041.codemate.contant.UserConstant;
 import com.wobushi041.codemate.exception.BusinessException;
+import com.wobushi041.codemate.mapper.UserMapper;
 import com.wobushi041.codemate.model.domain.User;
 import com.wobushi041.codemate.service.UserService;
-import com.wobushi041.codemate.mapper.UserMapper;
 import com.wobushi041.codemate.utils.AlgorithmUtils;
+import kotlin.Pair;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.ibatis.scripting.xmltags.ForEachSqlNode;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.DigestUtils;
-import org.springframework.util.ObjectUtils;
 
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -34,61 +38,69 @@ import java.util.stream.Collectors;
 import static com.wobushi041.codemate.contant.UserConstant.USER_LOGIN_STATE;
 
 /**
- * 用户服务实现类
+ * 用户服务实现
+ *
+ * @author wobushi041
  */
 @Service
 @Slf4j
 public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         implements UserService {
 
-    @Resource
-    private UserMapper userMapper;
-    @Resource
-    private RedissonClient redissonClient;
-
     /**
-     * 盐值，混淆密码
+     * 密码加密混淆盐值
      */
     private static final String SALT = "041";
 
     /**
-     * 用户注册
+     * 注入用户持久层依赖
+     */
+    @Resource
+    private UserMapper userMapper;
+
+    /**
+     * 注入 Redisson 客户端依赖
+     */
+    @Resource
+    private RedissonClient redissonClient;
+
+    /**
+     * 校验账号与星球编号唯一性并通过 MD5 加盐加密后写入 MySQL 用户表
      *
-     * @param userAccount   用户账户
+     * @param userAccount   用户账号
      * @param userPassword  用户密码
      * @param checkPassword 校验密码
      * @param planetCode    星球编号
-     * @return 新用户 id
+     * @return 新注册用户的 id
      */
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword, String planetCode) {
-        // 账户不能包含特殊字符
+        // 校验账号特殊字符与两次输入密码一致性
         String validPattern = "[`~!@#$%^&*()+=|{}':;',\\\\[\\\\].<>/?~！@#￥%……&*（）——+|{}【】‘；：”“’。，、？]";
         Matcher matcher = Pattern.compile(validPattern).matcher(userAccount);
         if (matcher.find()) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号包含特殊字符");
         }
-        // 密码和校验密码相同
         if (!userPassword.equals(checkPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "密码和校验密码不相同");
         }
-        // 账户不能重复
+
+        // 查询数据库校验用户账号与星球编号是否重复
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("userAccount", userAccount);
         long count = userMapper.selectCount(queryWrapper);
         if (count > 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号重复");
         }
-        // 星球编号不能重复
         queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("planetCode", planetCode);
         count = userMapper.selectCount(queryWrapper);
         if (count > 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "编号重复");
         }
-        // 2. 加密
+
+        // 使用 MD5 加盐加密密码并保存新用户记录至数据库
         String encryptPassword = DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
-        // 3. 插入数据
         User user = new User();
         user.setUserAccount(userAccount);
         user.setUserPassword(encryptPassword);
@@ -101,48 +113,48 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     }
 
     /**
-     * 用户登录
+     * 校验 MD5 加盐密码匹配性并将脱敏后的用户信息写入 HTTP Session 登录态
      *
-     * @param userAccount  用户账户
+     * @param userAccount  用户账号
      * @param userPassword 用户密码
-     * @param request
-     * @return 脱敏后的用户信息
+     * @param request      HTTP 请求对象
+     * @return 脱敏后的登录用户信息
      */
     @Override
     public User userLogin(String userAccount, String userPassword, HttpServletRequest request) {
-        // 账户不能包含特殊字符
+        // 校验账号格式并对输入密码执行 MD5 加盐摘要计算
         String validPattern = "[`~!@#$%^&*()+=|{}':;',\\\\[\\\\].<>/?~！@#￥%……&*（）——+|{}【】‘；：”“’。，、？]";
         Matcher matcher = Pattern.compile(validPattern).matcher(userAccount);
         if (matcher.find()) {
             return null;
         }
-        //  加密
         String encryptPassword = DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
-        // 查询用户是否存在
+
+        // 查询数据库验证账号与加密密码是否匹配
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("userAccount", userAccount);
         queryWrapper.eq("userPassword", encryptPassword);
         User user = userMapper.selectOne(queryWrapper);
-        // 用户不存在
         if (user == null) {
             log.info("user login failed, userAccount cannot match userPassword");
             return null;
         }
-        // 3. 用户脱敏
+
+        // 执行用户信息脱敏并写入 Session 登录态
         User safetyUser = getSafetyUser(user);
-        // 4. 记录用户的登录态
         request.getSession().setAttribute(USER_LOGIN_STATE, safetyUser);
         return safetyUser;
     }
 
     /**
-     * 用户脱敏
+     * 剥离用户密码等敏感字段并构造全新的脱敏用户对象
      *
-     * @param originUser
-     * @return
+     * @param originUser 原始用户实体
+     * @return 脱敏后的用户实体
      */
     @Override
     public User getSafetyUser(User originUser) {
+        // 判空并拷贝公开的非敏感用户属性
         if (originUser == null) {
             return null;
         }
@@ -162,83 +174,80 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         return safetyUser;
     }
 
+    /**
+     * 从 HTTP Session 中读取当前登录用户属性并校验登录状态
+     *
+     * @param request HTTP 请求对象
+     * @return 当前登录用户实体
+     */
     @Override
     public User getLoginUserFromRequest(HttpServletRequest request) {
+        // 从 Session 获取登录态对象并校验非空
         Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
         if (userObj == null) {
-            throw new BusinessException(ErrorCode.NULL_ERROR,"用户未登录");
+            throw new BusinessException(ErrorCode.NULL_ERROR, "用户未登录");
         }
         return (User) userObj;
     }
 
     /**
-     * 用户注销
+     * 从 HTTP Session 中移除当前用户的登录态属性
      *
-     * @param request
+     * @param request HTTP 请求对象
+     * @return 注销操作成功标识
      */
     @Override
     public int userLogout(HttpServletRequest request) {
-        // 移除登录态
+        // 移除 Session 中的用户登录态
         request.getSession().removeAttribute(USER_LOGIN_STATE);
         return 1;
     }
 
     /**
-     * 基于SQL查询，根据标签搜索用户
-     *@param tagNamelist
-     * @return
+     * 基于 MySQL LIKE 模糊查询拼接标签条件检索用户并执行脱敏处理
+     *
+     * @param tagNamelist 标签名称列表
+     * @return 脱敏后的匹配用户列表
      */
     @Override
     public List<User> searchUsersByTagId(List<String> tagNamelist) {
-        // 初始化查询包装器，并拼接标签的 AND 查询条件
+        // 初始化查询包装器并拼接每个标签的 LIKE 查询条件
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         for (String tagName : tagNamelist) {
-            //模糊查询like
-            // 使用标签列表的每一个标签项进行模糊查询
-            // 从数据库中根据查询条件检索用户列表
-            queryWrapper= queryWrapper.like("tags", tagName);
-
+            queryWrapper = queryWrapper.like("tags", tagName);
         }
-        // 执行查询操作，并返回用户列表
-        List<User> userList = userMapper.selectList(queryWrapper);
-        // 利用流式处理返回安全用户对象列表
-//        return userList.stream().map(user -> this.getSafetyUser(user)).collect(Collectors.toList());
-          return userList.stream()
-                  .map(this::getSafetyUser)
-                  .collect(Collectors.toList());
 
+        // 执行数据库查询并将结果集映射为脱敏用户列表
+        List<User> userList = userMapper.selectList(queryWrapper);
+        return userList.stream()
+                .map(this::getSafetyUser)
+                .collect(Collectors.toList());
     }
 
     /**
-     * 基于内存查询，根据标签搜索用户
-     * @param tagNameList 用户输入的标签列表，将在用户标签集合中进行匹配
-     * @return 符合条件的用户列表
-     * @throws BusinessException 当 `tagNameList` 为空或 `null` 时抛出参数错误异常
+     * 全量查询 MySQL 用户并在内存中通过 Gson 反序列化与并行流筛选包含目标标签的用户
+     *
+     * @param tagNameList 标签名称列表
+     * @return 脱敏后的匹配用户列表
      */
     @Override
     public List<User> searchUsersByTags(List<String> tagNameList) {
-        // 检查标签列表是否为空
+        // 校验标签列表是否为空
         if (CollectionUtils.isEmpty(tagNameList)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        // 1. 查询所有用户
+
+        // 查询数据库所有用户并在内存中通过并行流解析 JSON 标签集合进行匹配
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         List<User> userList = userMapper.selectList(queryWrapper);
         Gson gson = new Gson();
-        // 2. 在内存中过滤不符合标签要求的用户
-        // 利用 Gson 将 JSON 字符串转换为 Set<String> 对象
-        //parallelStream并发执行，区别于stream
         return userList.parallelStream()
                 .filter(user -> {
-                    // 获取用户的标签 JSON 字符串
                     String tagsStr = user.getTags();
-                    // 如果标签字段为空，则过滤掉该用户
                     if (StringUtils.isBlank(tagsStr)) {
                         return false;
                     }
-                    // 将 JSON 字符串解析为标签集合
                     Set<String> tmpTagNameList = gson.fromJson(tagsStr, new TypeToken<Set<String>>() {}.getType());
-                    // 如果用户的标签集合不包含所有目标标签，则过滤掉该用户
                     for (String tagName : tagNameList) {
                         if (!tmpTagNameList.contains(tagName)) {
                             return false;
@@ -246,49 +255,50 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
                     }
                     return true;
                 })
-                // 将用户对象转换为安全用户对象
                 .map(this::getSafetyUser)
-                // 收集符合条件的用户列表
                 .collect(Collectors.toList());
-
     }
 
     /**
-     * 判断当前操作用户是否为管理员。
-     * @param request HTTP请求对象，用于获取当前用户。
-     * @return 如果当前用户为管理员，则返回true；否则返回false。
+     * 从 HTTP Session 提取登录用户并比对用户角色是否为管理员常量值
+     *
+     * @param request HTTP 请求对象
+     * @return 是否为管理员
      */
     @Override
     public boolean isAdmin(HttpServletRequest request) {
-    try {
-        User user = this.getLoginUserFromRequest(request);
-        return user.getUserRole() == UserConstant.ADMIN_ROLE;
-    }catch (BusinessException e){
-        return false;
-    }
+        // 尝试从请求中获取登录用户并校验管理员角色
+        try {
+            User user = this.getLoginUserFromRequest(request);
+            return user.getUserRole() == UserConstant.ADMIN_ROLE;
+        } catch (BusinessException e) {
+            return false;
+        }
     }
 
     /**
-     * 判断当前操作用户是否为管理员。
-     * @param loginUser 用户对象
-     * @return 如果当前用户为管理员，则返回true；否则返回false。
+     * 校验给定用户实体非空且角色标识等于管理员常量值
+     *
+     * @param loginUser 当前登录用户
+     * @return 是否为管理员
      */
     @Override
     public boolean isAdmin(User loginUser) {
+        // 判断用户非空且角色为管理员
         return loginUser != null && loginUser.getUserRole() == UserConstant.ADMIN_ROLE;
     }
 
     /**
-     * 匹配用户方法。
-     * 根据当前用户的标签找出数据库中标签相似的用户。
-     * 这个方法首先过滤出所有有标签的用户，然后使用编辑距离算法（Levenshtein distance）
-     * 计算标签相似度，最后返回相似度最高的用户列表。
-     * @param num 需要返回的用户数量，此数值应大于0且不超过20。
-     * @param loginUser 当前登录的用户对象，用于从中提取标签进行比较。
-     * @return 返回一个列表，包含与当前用户标签最相似的其他用户。
+     * 优先从 Redisson 缓存获取匹配伙伴列表，未命中时执行多算法相似度匹配并缓存
+     *
+     * @param num       期望匹配的用户数量
+     * @param loginUser 当前登录用户
+     * @return 脱敏后的高匹配度用户列表
      */
     @Override
+    @SuppressWarnings("unchecked")
     public List<User> matchUsers(long num, User loginUser) {
+        // 检查 Redisson 缓存中是否已存在当前用户的匹配结果
         Long loginUserId = loginUser.getId();
         String redisKey = buildMatchUsersCacheKey(loginUserId);
         RBucket<Object> bucket = redissonClient.getBucket(redisKey);
@@ -296,84 +306,111 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         if (cachedValue instanceof List) {
             return (List<User>) cachedValue;
         }
+
+        // 缓存未命中时回源执行标签相似度计算并写入缓存
         return queryAndCacheMatchUsers(num, loginUserId, bucket);
     }
 
+    /**
+     * 跳过缓存直接执行多算法标签相似度匹配并将最新结果更新至 Redisson 缓存
+     *
+     * @param num       期望匹配的用户数量
+     * @param loginUser 当前登录用户
+     * @return 脱敏后的高匹配度用户列表
+     */
     @Override
     public List<User> matchUsersWithoutRedis(long num, User loginUser) {
+        // 构造 Redisson 缓存桶并强制重新计算匹配用户列表
         Long loginUserId = loginUser.getId();
         String redisKey = buildMatchUsersCacheKey(loginUserId);
         RBucket<Object> bucket = redissonClient.getBucket(redisKey);
         return queryAndCacheMatchUsers(num, loginUserId, bucket);
     }
 
+    /**
+     * 查询带标签候选用户并计算综合标签相似度，取前 N 名脱敏后写入 Redisson 缓存
+     *
+     * @param num         期望匹配的用户数量
+     * @param loginUserId 当前登录用户 id
+     * @param bucket      Redisson 缓存桶对象
+     * @return 按相似度降序排列的脱敏用户列表
+     */
     private List<User> queryAndCacheMatchUsers(long num, long loginUserId, RBucket<Object> bucket) {
+        // 查询当前登录用户最新标签，若无标签则清理缓存并返回空列表
         User loginUser;
         loginUser = this.getById(loginUserId);
         if (loginUser == null || StringUtils.isBlank(loginUser.getTags())) {
             bucket.delete();
             return Collections.emptyList();
         }
-        // 初始化查询条件，确保用户的标签不为空
+
+        // 仅查询数据库中非空标签用户的 id 与 tags 字段以降低内存开销
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
-        queryWrapper.isNotNull("tags"); // 确保查询的用户有标签信息
-        queryWrapper.select("id", "tags"); // 仅选择id和tags字段进行查询，以减少数据量
-        // 获取数据库中所有带标签的用户列表
+        queryWrapper.isNotNull("tags");
+        queryWrapper.select("id", "tags");
         List<User> userList = this.list(queryWrapper);
-        // 将当前用户的标签从JSON字符串转换为List
+
+        // 解析当前登录用户的标签 JSON 列表
         String tags = loginUser.getTags();
         Gson gson = new Gson();
-        List<String> tagList = gson.fromJson(tags, new TypeToken<List<String>>(){}.getType());
+        List<String> tagList = gson.fromJson(tags, new TypeToken<List<String>>() {}.getType());
         if (CollectionUtils.isEmpty(tagList)) {
             bucket.delete();
             return Collections.emptyList();
         }
-        // 准备用于存储用户与距离信息的列表
+
+        // 遍历候选用户并计算综合标签匹配得分
         List<Pair<User, Double>> list = new ArrayList<>();
         for (User user : userList) {
             String userTags = user.getTags();
-            // 排除空标签以及当前用户自己
             if (StringUtils.isBlank(userTags) || Objects.equals(user.getId(), loginUser.getId())) {
                 continue;
             }
-            List<String> userTagList = gson.fromJson(userTags, new TypeToken<List<String>>(){}.getType());
-            // 过滤空标签列表
+            List<String> userTagList = gson.fromJson(userTags, new TypeToken<List<String>>() {}.getType());
             if (CollectionUtils.isEmpty(userTagList)) {
                 continue;
             }
             double score = calculateFriendMatchScore(tagList, userTagList);
             list.add(new Pair<>(user, score));
         }
-        // 按综合相似度分数从高到低排序
+
+        // 按相似度分数从高到低排序并截取前 num 名用户的 id
         List<Pair<User, Double>> topUserPairList = list.stream()
                 .sorted((o1, o2) -> Double.compare(o2.getSecond(), o1.getSecond()))
-                .limit(num)  // 限制结果数量，只取距离最小的前num个用户
-                .collect(Collectors.toList());  // 收集最终的配对列表
-        // 提取最匹配的用户ID列表
+                .limit(num)
+                .collect(Collectors.toList());
         List<Long> userListVo = topUserPairList.stream()
-                .map(pair -> pair.getFirst().getId())  // 从配对中提取用户ID
+                .map(pair -> pair.getFirst().getId())
                 .collect(Collectors.toList());
         if (CollectionUtils.isEmpty(userListVo)) {
             bucket.delete();
             return Collections.emptyList();
         }
-        // 根据ID重新查询用户信息，并进行脱敏处理
+
+        // 批量回查完整用户信息并按匹配度顺序组装脱敏列表写入缓存
         QueryWrapper<User> userQueryWrapper = new QueryWrapper<>();
-        userQueryWrapper.in("id", userListVo);  // 使用用户ID过滤查询
+        userQueryWrapper.in("id", userListVo);
         Map<Long, List<User>> userIdUserListMap = this.list(userQueryWrapper)
                 .stream()
-                .map(this::getSafetyUser)  // 对用户信息进行脱敏处理
-                .collect(Collectors.groupingBy(User::getId));  // 按用户ID进行分组
-        // 按照 userListVo 的顺序组装最终的用户列表，保持相似度排序
+                .map(this::getSafetyUser)
+                .collect(Collectors.groupingBy(User::getId));
         List<User> finalUserList = new ArrayList<>();
         for (Long userId : userListVo) {
-            finalUserList.add(userIdUserListMap.get(userId).get(0));  // 从映射中获取用户并添加到最终列表
+            finalUserList.add(userIdUserListMap.get(userId).get(0));
         }
-        bucket.set(finalUserList,7, TimeUnit.DAYS);
+        bucket.set(finalUserList, 7, TimeUnit.DAYS);
         return finalUserList;
     }
 
+    /**
+     * 融合编辑距离、Jaccard 相似度、余弦相似度与 IK 分词计算两组标签的加权匹配分数
+     *
+     * @param list1 第一组用户标签列表
+     * @param list2 第二组用户标签列表
+     * @return 加权综合相似度分数
+     */
     private double calculateFriendMatchScore(List<String> list1, List<String> list2) {
+        // 统一转小写并识别中英文混合类型以执行分词预处理
         List<String> resultList1 = list1.stream()
                 .filter(Objects::nonNull)
                 .map(item -> item.toLowerCase(Locale.ROOT))
@@ -390,6 +427,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         if (strType2 == AlgorithmUtils.MIXED_CHINESE_ENGLISH) {
             resultList2 = AlgorithmUtils.tokenize(resultList2);
         }
+
+        // 分别计算 IK 分词、编辑距离、Jaccard 与余弦相似度并按权重汇总
         double ikScore = calculateIkScore(list1, list2, strType1, strType2);
         int editDistanceScore = AlgorithmUtils.calculateEditDistance(resultList1, resultList2);
         double maxEditDistance = Math.max(resultList1.size(), resultList2.size());
@@ -399,10 +438,22 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         return editDistance * 0.5 + jaccardScore * 0.3 + similarityScore * 0.2 + ikScore * 0.3;
     }
 
+    /**
+     * 提取中文字符并通过 IK 分词器计算两组标签的 Jaccard 语义相似度
+     *
+     * @param list1    第一组原始标签列表
+     * @param list2    第二组原始标签列表
+     * @param strType1 第一组标签字符类型
+     * @param strType2 第二组标签字符类型
+     * @return IK 分词后的 Jaccard 相似度得分
+     */
     private double calculateIkScore(List<String> list1, List<String> list2, int strType1, int strType2) {
+        // 若任一标签组为纯英文则跳过中文 IK 分词
         if (strType1 == AlgorithmUtils.ENGLISH || strType2 == AlgorithmUtils.ENGLISH) {
             return 0D;
         }
+
+        // 提取中文字符并调用 IK 分词计算 Jaccard 相似度
         try {
             List<String> quotedList1 = list1.stream()
                     .filter(Objects::nonNull)
@@ -422,35 +473,42 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             return 0D;
         }
     }
+
     /**
-     * User user:前端传来的要更改的user；User loginUser：当前登录用户，
-     * 要判断是不是管理员，不是的话判断是不是修改本人的字段(userId==loginUserId)
-     * 最后调用userMapper.updateById(user)更新数据库
-     * @return 更新操作影响的数据库记录数。通常返回1表示更新成功，返回0表示未进行更新。
+     * 校验管理员或本人修改权限后通过 MyBatis-Plus 按主键更新数据库用户记录
+     *
+     * @param user                 待更新的用户信息
+     * @param loginUserFromRequest 当前登录用户
+     * @return 更新操作影响的数据库记录数
      */
     @Override
     public int updateUser(User user, User loginUserFromRequest) {
-        //userId作用:校验，数据库查询和更新对应user
+        // 校验目标用户 id 与修改权限（仅允许管理员或本人修改）
         long userId = user.getId();
-        if (userId <= 0){
+        if (userId <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        if(!isAdmin(loginUserFromRequest)&&loginUserFromRequest.getId()!=userId){
+        if (!isAdmin(loginUserFromRequest) && loginUserFromRequest.getId() != userId) {
             throw new BusinessException(ErrorCode.NO_AUTH);
         }
+
+        // 校验目标用户是否存在并执行主键更新
         User oldUser = userMapper.selectById(userId);
-        if (oldUser==null){
+        if (oldUser == null) {
             throw new BusinessException(ErrorCode.NULL_ERROR);
         }
         return userMapper.updateById(user);
     }
 
-    private String buildMatchUsersCacheKey(long userId){
+    /**
+     * 构建指定用户的伙伴匹配结果 Redis 缓存键名
+     *
+     * @param userId 用户 id
+     * @return 伙伴匹配 Redis 缓存键名
+     */
+    private String buildMatchUsersCacheKey(long userId) {
+        // 格式化拼接用户 id 与匹配缓存前缀
         return String.format("user:match:%d", userId);
     }
 
-
 }
-
-
-

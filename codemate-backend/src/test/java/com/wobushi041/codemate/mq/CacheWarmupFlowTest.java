@@ -24,7 +24,6 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -37,6 +36,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * 推荐缓存预热消息流转单元测试
+ *
+ * @author wobushi041
+ */
 @SpringBootTest(properties = {
         "codemate.cache.warmup.bootstrap-enabled=false",
         "codemate.cache.warmup.delay-millis=30000",
@@ -47,23 +51,44 @@ import static org.mockito.Mockito.when;
 })
 class CacheWarmupFlowTest {
 
+    /**
+     * 注入缓存预热消息生产者依赖
+     */
     @Autowired
     private CacheWarmupProducer cacheWarmupProducer;
 
+    /**
+     * 注入缓存预热消息消费者依赖
+     */
     @Autowired
     private CacheWarmupConsumer cacheWarmupConsumer;
 
+    /**
+     * 模拟 RabbitMQ 消息模板依赖
+     */
     @MockBean
     private RabbitTemplate rabbitTemplate;
 
+    /**
+     * 模拟推荐缓存服务依赖
+     */
     @MockBean
     private RecommendCacheService recommendCacheService;
 
+    /**
+     * 模拟 Redisson 客户端依赖
+     */
     @MockBean
     private RedissonClient redissonClient;
 
+    /**
+     * 模拟分布式锁实例
+     */
     private RLock lock;
 
+    /**
+     * 初始化每个测试用例的分布式锁模拟行为
+     */
     @BeforeEach
     void setUp() throws InterruptedException {
         lock = mock(RLock.class);
@@ -72,12 +97,19 @@ class CacheWarmupFlowTest {
         when(lock.isHeldByCurrentThread()).thenReturn(true);
     }
 
+    /**
+     * 测试调度预热任务时设置指定的延迟时间与持久化投递模式
+     */
+    // 场景：测试生产者发送延迟预热任务时正确设置消息 TTL 与持久化模式
     @Test
     void scheduleWarmupTask_shouldSetSpecifiedDelay() {
+        // 1. 准备测试数据
         RecommendCacheWarmupMessage message = cacheWarmupProducer.newWarmupMessage(1001L, 1L, 10L);
 
+        // 2. 调用待测方法
         cacheWarmupProducer.scheduleWarmupTask(message, 30000L);
 
+        // 3. 断言结果
         ArgumentCaptor<MessagePostProcessor> postProcessorCaptor =
                 ArgumentCaptor.forClass(MessagePostProcessor.class);
         verify(rabbitTemplate).convertAndSend(
@@ -93,8 +125,13 @@ class CacheWarmupFlowTest {
         assertEquals(MessageDeliveryMode.PERSISTENT, processedMessage.getMessageProperties().getDeliveryMode());
     }
 
+    /**
+     * 测试消费回调在缓存逻辑过期时刷新缓存并调度下一轮任务
+     */
+    // 场景：测试缓存处于逻辑过期状态时消费者触发缓存刷新并投递下一轮延迟任务
     @Test
     void deliverCallback_shouldRefreshExpiredCacheAndScheduleNextRound() {
+        // 1. 准备测试数据与模拟依赖
         RecommendCacheWarmupMessage message = cacheWarmupProducer.newWarmupMessage(1003L, 2L, 5L);
         Page<User> userPage = new Page<>(2L, 5L);
         userPage.setTotal(3L);
@@ -112,8 +149,10 @@ class CacheWarmupFlowTest {
         when(recommendCacheService.refreshRecommendCache(1003L, 2L, 5L)).thenReturn(refreshedSnapshot);
         when(recommendCacheService.calculateNextDelayMillis(refreshedSnapshot)).thenReturn(29000L);
 
+        // 2. 调用待测方法
         cacheWarmupConsumer.deliverCallback(message);
 
+        // 3. 断言结果
         verify(recommendCacheService).refreshRecommendCache(1003L, 2L, 5L);
 
         ArgumentCaptor<RecommendCacheWarmupMessage> nextMessageCaptor =
@@ -139,8 +178,13 @@ class CacheWarmupFlowTest {
         verify(lock).unlock();
     }
 
+    /**
+     * 测试消费回调在缓存进入提前刷新窗口时刷新缓存
+     */
+    // 场景：测试缓存进入提前刷新时间窗口时消费者主动刷新缓存并调度下一轮任务
     @Test
     void deliverCallback_shouldRefreshWhenCacheEntersRefreshAheadWindow() {
+        // 1. 准备测试数据与模拟依赖
         RecommendCacheWarmupMessage message = cacheWarmupProducer.newWarmupMessage(1005L, 1L, 20L);
         Page<User> userPage = new Page<>(1L, 20L);
         userPage.setTotal(12L);
@@ -158,8 +202,10 @@ class CacheWarmupFlowTest {
         when(recommendCacheService.refreshRecommendCache(1005L, 1L, 20L)).thenReturn(refreshedSnapshot);
         when(recommendCacheService.calculateNextDelayMillis(refreshedSnapshot)).thenReturn(29000L);
 
+        // 2. 调用待测方法
         cacheWarmupConsumer.deliverCallback(message);
 
+        // 3. 断言结果
         verify(recommendCacheService).refreshRecommendCache(1005L, 1L, 20L);
         verify(rabbitTemplate).convertAndSend(
                 eq(RabbitMqConfig.CACHE_WARMUP_DELAY_EXCHANGE),
@@ -169,8 +215,13 @@ class CacheWarmupFlowTest {
         verify(lock).unlock();
     }
 
+    /**
+     * 测试消费回调在缓存仍有效时直接复用缓存并继续调度下一轮任务
+     */
+    // 场景：测试缓存有效期内消费者跳过刷新操作并继续调度下一轮延迟任务
     @Test
     void deliverCallback_shouldReuseValidCacheAndStillScheduleNextRound() {
+        // 1. 准备测试数据与模拟依赖
         RecommendCacheWarmupMessage message = cacheWarmupProducer.newWarmupMessage(1004L, 1L, 20L);
         Page<User> userPage = new Page<>(1L, 20L);
         userPage.setTotal(8L);
@@ -182,8 +233,10 @@ class CacheWarmupFlowTest {
         when(recommendCacheService.getRecommendCacheSnapshot(1004L, 1L, 20L)).thenReturn(validSnapshot);
         when(recommendCacheService.calculateNextDelayMillis(validSnapshot)).thenReturn(12000L);
 
+        // 2. 调用待测方法
         cacheWarmupConsumer.deliverCallback(message);
 
+        // 3. 断言结果
         verify(recommendCacheService, never()).refreshRecommendCache(1004L, 1L, 20L);
         verify(rabbitTemplate).convertAndSend(
                 eq(RabbitMqConfig.CACHE_WARMUP_DELAY_EXCHANGE),
@@ -192,4 +245,5 @@ class CacheWarmupFlowTest {
                 any(MessagePostProcessor.class));
         verify(lock).unlock();
     }
+
 }

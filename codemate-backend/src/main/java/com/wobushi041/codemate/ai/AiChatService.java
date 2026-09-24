@@ -10,37 +10,38 @@ import reactor.core.publisher.Flux;
 
 /**
  * AI 编程助手服务接口
- * 基于 LangChain4j AiServices 声明式定义
+ *
+ * @author wobushi041
  */
 @InputGuardrails({SafeInputGuardrail.class})
 public interface AiChatService {
 
     /**
-     * 流式对话（SSE）
+     * 执行流式对话（SSE）
      *
-     * @param memoryId   会话 ID，用于隔离不同用户的对话记忆
+     * @param memoryId    会话 ID，用于隔离不同用户的对话记忆
      * @param userMessage 用户消息（已注入 tags 上下文）
-     * @return 流式响应
-     *  用异步数据流对象 Flux 接收流式数据
+     * @return 流式响应文本数据流
      */
     @SystemMessage(fromResource = "system-prompt.txt")
     Flux<String> chatStream(@MemoryId int memoryId, @UserMessage String userMessage);
 
     /**
-     * 普通对话（非流式）
+     * 执行普通非流式对话
      *
      * @param userMessage 用户消息
-     * @return AI 回复
+     * @return AI 回复内容
      */
     @SystemMessage(fromResource = "system-prompt.txt")
     String chat(String userMessage);
 
     /**
-     * RAG 增强对话（返回检索来源信息）
+     * 执行 RAG 增强对话并返回检索来源信息
      *
      * @param userMessage 用户消息
-     * @return AI 回复及检索来源
+     * @return AI 回复内容及检索来源封装结果
      */
     @SystemMessage(fromResource = "system-prompt.txt")
     Result<String> chatWithRag(String userMessage);
+
 }
