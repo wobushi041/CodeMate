@@ -43,10 +43,6 @@ public class ChatInboundMessage implements Serializable {
     private String content;
 
     /// 序列化字段 ///
-
-    /**
-     * 序列化版本号
-     */
     private static final long serialVersionUID = 1L;
 
 }

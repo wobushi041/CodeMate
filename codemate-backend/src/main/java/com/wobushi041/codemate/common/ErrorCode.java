@@ -43,7 +43,9 @@ public enum ErrorCode {
     /**
      * 系统内部异常
      */
-    SYSTEM_ERROR(50000, "系统内部异常", "");
+    SYSTEM_ERROR(50000, "系统内部异常", ""),
+
+    ;
 
     /**
      * 错误状态码

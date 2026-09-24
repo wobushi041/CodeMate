@@ -67,13 +67,6 @@ public class ChatMessageResponse implements Serializable {
      */
     private String createTime;
 
-    /// 序列化字段 ///
-
-    /**
-     * 序列化版本号
-     */
-    private static final long serialVersionUID = 1L;
-
     /**
      * 快速构建错误响应对象
      *
@@ -115,5 +108,8 @@ public class ChatMessageResponse implements Serializable {
         response.setSessionId(sessionId);
         return response;
     }
+
+    /// 序列化字段 ///
+    private static final long serialVersionUID = 1L;
 
 }

@@ -25,6 +25,8 @@ public enum RecommendCacheStatus {
     /**
      * 缓存有效
      */
-    VALID
+    VALID,
+
+    ;
 
 }
