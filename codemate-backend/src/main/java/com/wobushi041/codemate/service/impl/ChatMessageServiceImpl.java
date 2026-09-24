@@ -4,7 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.wobushi041.codemate.chat.ChatMessageResponse;
 import com.wobushi041.codemate.mapper.ChatMessageMapper;
+import com.wobushi041.codemate.mapper.UserMapper;
 import com.wobushi041.codemate.model.domain.ChatMessage;
+import com.wobushi041.codemate.model.domain.User;
 import com.wobushi041.codemate.service.ChatMessageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -16,6 +18,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 聊天消息服务实现
@@ -45,6 +51,11 @@ public class ChatMessageServiceImpl implements ChatMessageService {
      * 注入聊天消息持久层依赖
      */
     private final ChatMessageMapper chatMessageMapper;
+
+    /**
+     * 注入用户持久层依赖
+     */
+    private final UserMapper userMapper;
 
     /**
      * 注入 Redis 模板依赖
@@ -117,6 +128,9 @@ public class ChatMessageServiceImpl implements ChatMessageService {
             records.sort(Comparator.comparing(ChatMessageResponse::getCreateTime, Comparator.nullsLast(String::compareTo)).reversed());
         }
 
+        // 批量查询发送者资料，为历史消息补充当前头像地址
+        enrichSenderAvatars(records);
+
         // 构造分页结果返回
         Page<ChatMessageResponse> responsePage = new Page<>(pageNum, pageSize);
         responsePage.setRecords(records);
@@ -145,6 +159,35 @@ public class ChatMessageServiceImpl implements ChatMessageService {
             }
         }
         return messages;
+    }
+
+    /**
+     * 批量补充消息发送者的当前头像，避免逐条查询产生 N+1 问题
+     *
+     * @param messages 待补充头像的聊天消息列表
+     */
+    private void enrichSenderAvatars(List<ChatMessageResponse> messages) {
+        Set<Long> senderIds = messages.stream()
+                .map(ChatMessageResponse::getFromUserId)
+                .filter(id -> id != null && id > 0)
+                .collect(Collectors.toSet());
+        if (senderIds.isEmpty()) {
+            return;
+        }
+
+        List<User> users = userMapper.selectBatchIds(senderIds);
+        if (users == null || users.isEmpty()) {
+            return;
+        }
+
+        Map<Long, User> userMap = users.stream()
+                .collect(Collectors.toMap(User::getId, Function.identity(), (left, right) -> left));
+        for (ChatMessageResponse message : messages) {
+            User sender = userMap.get(message.getFromUserId());
+            if (sender != null) {
+                message.setFromAvatarUrl(sender.getAvatarUrl());
+            }
+        }
     }
 
     /**

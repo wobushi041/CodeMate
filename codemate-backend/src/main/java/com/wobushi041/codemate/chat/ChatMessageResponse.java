@@ -53,6 +53,11 @@ public class ChatMessageResponse implements Serializable {
     private String fromUsername;
 
     /**
+     * 消息发送方当前头像地址
+     */
+    private String fromAvatarUrl;
+
+    /**
      * 聊天消息正文内容
      */
     private String content;

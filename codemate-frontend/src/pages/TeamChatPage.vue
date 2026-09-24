@@ -80,6 +80,7 @@ type ChatMessage = {
   clientMessageId?: string;
   fromUserId?: number;
   fromUsername?: string;
+  fromAvatarUrl?: string;
   content?: string;
   message?: string;
   createTime?: string;
@@ -270,6 +271,9 @@ const avatarText = (message: ChatMessage) => {
   return name.slice(0, 1).toUpperCase();
 };
 const avatarSource = (message: ChatMessage) => {
+  if (message.fromAvatarUrl) {
+    return message.fromAvatarUrl;
+  }
   if (isSelfMessage(message) && currentUser.value?.avatarUrl) {
     return currentUser.value.avatarUrl;
   }

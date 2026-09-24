@@ -9,6 +9,7 @@ import com.wobushi041.codemate.chat.ChatInboundMessage;
 import com.wobushi041.codemate.chat.ChatMessageResponse;
 import com.wobushi041.codemate.common.ErrorCode;
 import com.wobushi041.codemate.exception.BusinessException;
+import com.wobushi041.codemate.mapper.UserMapper;
 import com.wobushi041.codemate.model.domain.Team;
 import com.wobushi041.codemate.model.domain.User;
 import com.wobushi041.codemate.model.domain.UserTeam;
@@ -66,6 +67,11 @@ public class ChatRoomServiceImpl implements ChatRoomService {
      * 注入聊天消息服务依赖
      */
     private final ChatMessageService chatMessageService;
+
+    /**
+     * 注入用户持久层依赖，用于读取发送者最新公开资料
+     */
+    private final UserMapper userMapper;
 
     /**
      * 注入 Jackson 序列化依赖
@@ -176,16 +182,35 @@ public class ChatRoomServiceImpl implements ChatRoomService {
      * @return 组装完成的聊天响应对象
      */
     private ChatMessageResponse buildChatResponse(Long teamId, User loginUser, ChatInboundMessage request) {
+        User currentUser = resolveCurrentUser(loginUser);
+
         // 组装下行广播消息字段
         ChatMessageResponse response = new ChatMessageResponse();
         response.setType("CHAT");
         response.setTeamId(teamId);
         response.setClientMessageId(request.getClientMessageId());
-        response.setFromUserId(loginUser.getId());
-        response.setFromUsername(loginUser.getUsername());
+        response.setFromUserId(currentUser.getId());
+        response.setFromUsername(currentUser.getUsername());
+        response.setFromAvatarUrl(currentUser.getAvatarUrl());
         response.setContent(request.getContent());
         response.setCreateTime(new SimpleDateFormat(DATE_PATTERN).format(new Date()));
         return response;
+    }
+
+    /**
+     * 从数据库读取发送者最新公开资料，查询失败时降级使用握手阶段的登录用户快照
+     *
+     * @param loginUser 握手阶段保存的登录用户
+     * @return 当前用户资料；数据库不可用时返回登录用户快照
+     */
+    private User resolveCurrentUser(User loginUser) {
+        try {
+            User currentUser = userMapper.selectById(loginUser.getId());
+            return currentUser == null ? loginUser : currentUser;
+        } catch (Exception e) {
+            log.warn("load current chat sender profile failed, userId={}", loginUser.getId(), e);
+            return loginUser;
+        }
     }
 
     /**

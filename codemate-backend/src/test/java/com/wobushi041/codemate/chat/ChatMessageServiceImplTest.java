@@ -3,7 +3,9 @@ package com.wobushi041.codemate.chat;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.wobushi041.codemate.mapper.ChatMessageMapper;
+import com.wobushi041.codemate.mapper.UserMapper;
 import com.wobushi041.codemate.model.domain.ChatMessage;
+import com.wobushi041.codemate.model.domain.User;
 import com.wobushi041.codemate.service.impl.ChatMessageServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -33,6 +35,11 @@ class ChatMessageServiceImplTest {
     private final ChatMessageMapper chatMessageMapper = mock(ChatMessageMapper.class);
 
     /**
+     * 模拟用户 Mapper 依赖
+     */
+    private final UserMapper userMapper = mock(UserMapper.class);
+
+    /**
      * 模拟 Redis 模板依赖
      */
     private final RedisTemplate<String, Object> redisTemplate = mock(RedisTemplate.class);
@@ -45,7 +52,7 @@ class ChatMessageServiceImplTest {
     /**
      * 待测聊天消息服务实现实例
      */
-    private final ChatMessageServiceImpl chatMessageService = new ChatMessageServiceImpl(chatMessageMapper, redisTemplate);
+    private final ChatMessageServiceImpl chatMessageService = new ChatMessageServiceImpl(chatMessageMapper, userMapper, redisTemplate);
 
     /**
      * 测试保存聊天消息至 MySQL
@@ -139,6 +146,39 @@ class ChatMessageServiceImplTest {
 
         // 3. 断言结果
         assertEquals("tester", result.getRecords().get(0).getFromUsername());
+    }
+
+    /**
+     * 测试历史消息批量补充发送者当前头像
+     */
+    // 场景：测试 MySQL 历史消息返回与首页用户资料一致的头像地址
+    @Test
+    void enrichesMysqlMessagesWithCurrentSenderAvatar() {
+        // 1. 准备历史消息与用户资料
+        ChatMessage dbMessage = new ChatMessage();
+        dbMessage.setId(100L);
+        dbMessage.setTeamId(1L);
+        dbMessage.setFromUserId(41L);
+        dbMessage.setFromUsername("tester");
+        dbMessage.setContent("mysql message");
+        Page<ChatMessage> dbPage = new Page<>(1, 20);
+        dbPage.setRecords(List.of(dbMessage));
+        dbPage.setTotal(1);
+
+        User sender = new User();
+        sender.setId(41L);
+        sender.setAvatarUrl("https://cdn.example.com/avatar-41.png");
+
+        when(chatMessageMapper.selectPage(any(Page.class), any(Wrapper.class))).thenReturn(dbPage);
+        when(userMapper.selectBatchIds(any())).thenReturn(List.of(sender));
+        when(redisTemplate.opsForList()).thenReturn(listOperations);
+        when(listOperations.range(eq("chat:message:fallback:1"), eq(0L), eq(-1L))).thenReturn(List.of());
+
+        // 2. 调用待测方法
+        Page<ChatMessageResponse> result = chatMessageService.listTeamMessagesWithFallback(1L, 1, 20);
+
+        // 3. 断言历史消息携带当前头像地址
+        assertEquals("https://cdn.example.com/avatar-41.png", result.getRecords().get(0).getFromAvatarUrl());
     }
 
     /**

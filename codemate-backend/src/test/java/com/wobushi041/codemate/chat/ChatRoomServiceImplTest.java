@@ -2,6 +2,7 @@ package com.wobushi041.codemate.chat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wobushi041.codemate.exception.BusinessException;
+import com.wobushi041.codemate.mapper.UserMapper;
 import com.wobushi041.codemate.model.domain.Team;
 import com.wobushi041.codemate.model.domain.User;
 import com.wobushi041.codemate.service.ChatMessageService;
@@ -51,6 +52,11 @@ class ChatRoomServiceImplTest {
     private final ChatMessageService chatMessageService = mock(ChatMessageService.class);
 
     /**
+     * 模拟用户持久层依赖
+     */
+    private final UserMapper userMapper = mock(UserMapper.class);
+
+    /**
      * 待测聊天室服务实例
      */
     private final ChatRoomService chatRoomService = new ChatRoomServiceImpl(
@@ -58,6 +64,7 @@ class ChatRoomServiceImplTest {
             userTeamService,
             chatChannelManager,
             chatMessageService,
+            userMapper,
             new ObjectMapper()
     );
 
@@ -143,6 +150,38 @@ class ChatRoomServiceImplTest {
         assertNotNull(sender.readOutbound());
         assertNotNull(receiver.readOutbound());
         verify(chatMessageService).saveFallbackMessage(any());
+    }
+
+    /**
+     * 测试实时群聊消息携带发送者头像地址
+     */
+    // 场景：测试 WebSocket 广播消息包含与首页用户资料一致的头像地址
+    @Test
+    void broadcastsSenderAvatarUrlWithRealtimeMessage() throws Exception {
+        // 1. 准备测试数据
+        User loginUser = user(41L);
+        loginUser.setAvatarUrl("https://cdn.example.com/stale-avatar-41.png");
+        User currentUser = user(41L);
+        currentUser.setAvatarUrl("https://cdn.example.com/avatar-41.png");
+        when(userMapper.selectById(41L)).thenReturn(currentUser);
+        EmbeddedChannel sender = new EmbeddedChannel();
+        sender.attr(ChatAttributes.TEAM_ID).set(1L);
+        chatChannelManager.joinRoom(1L, 41L, sender);
+
+        ChatInboundMessage request = new ChatInboundMessage();
+        request.setType("CHAT");
+        request.setClientMessageId("uuid-avatar-1");
+        request.setContent("带头像的实时消息");
+
+        // 2. 调用待测方法
+        chatRoomService.sendRoomMessage(loginUser, sender, request);
+
+        // 3. 断言广播载荷包含发送者头像地址
+        TextWebSocketFrame frame = sender.readOutbound();
+        assertNotNull(frame);
+        String avatarUrl = new ObjectMapper().readTree(frame.text()).path("fromAvatarUrl").asText();
+        assertEquals("https://cdn.example.com/avatar-41.png", avatarUrl);
+        frame.release();
     }
 
     /**
