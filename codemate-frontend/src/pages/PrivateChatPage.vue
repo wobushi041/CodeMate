@@ -1,20 +1,20 @@
 <template>
   <SubPageLayout ref="layoutRef" :title="targetUsername || '单人聊天室'">
+    <template #headerCenter>
+      <div class="chat-header-center">
+        <h1 :title="targetUsername || '私聊伙伴'">{{ targetUsername || '私聊伙伴' }}</h1>
+        <p class="connection-status" :title="statusText">
+          <span class="connection-dot" :class="{ 'connection-dot--online': targetOnline }" />
+          <span>{{ statusText }}</span>
+        </p>
+      </div>
+    </template>
+    <template #headerRight>
+      <button class="refresh-button chat-header-refresh" type="button" :aria-label="loadingHistory ? '正在刷新记录' : '刷新记录'" :title="loadingHistory ? '正在刷新记录' : '刷新记录'" :disabled="loadingHistory" @click="loadHistory">
+        <RefreshCw :class="{ 'is-spinning': loadingHistory }" :size="18" :stroke-width="1.9" />
+      </button>
+    </template>
     <div class="chat-content">
-      <section class="team-info-card">
-        <div>
-          <h2>{{ targetUsername || '私聊伙伴' }}</h2>
-          <p class="connection-status">
-            <span class="connection-dot" :class="{ 'connection-dot--online': targetOnline }" />
-            {{ statusText }}
-          </p>
-        </div>
-        <button class="refresh-button" type="button" :disabled="loadingHistory" @click="loadHistory">
-          <RefreshCw :class="{ 'is-spinning': loadingHistory }" :size="16" :stroke-width="1.9" />
-          <span>{{ loadingHistory ? '正在刷新...' : '刷新记录' }}</span>
-        </button>
-      </section>
-
       <div v-if="loadingHistory && !messages.length" class="chat-state">
         <LoaderCircle class="is-spinning" :size="26" />
         <span>加载中...</span>
@@ -122,7 +122,7 @@ let ws: WebSocket | null = null;
 
 const statusText = computed(() => {
   if (joined.value) {
-    return targetOnline.value ? '已进入会话 (对方在线)' : '已进入会话 (对方离线，可留言)';
+    return targetOnline.value ? '已进入 · 对方在线' : '已进入 · 对方离线，可留言';
   }
   if (connected.value) {
     return '正在同步会话...';
@@ -371,37 +371,6 @@ const createClientMessageId = () => {
   overflow-x: hidden;
 }
 
-.team-info-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin: 10px 0 28px;
-  padding: 20px;
-  border: 1px solid rgba(100, 116, 139, 0.35);
-  border-radius: 16px;
-  background: #1e293b;
-  box-shadow: 0 16px 30px rgba(2, 6, 23, 0.2);
-}
-
-.team-info-card h2 {
-  margin: 0;
-  overflow: hidden;
-  color: #f8fafc;
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 26px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.team-info-card p {
-  margin: 4px 0 0;
-  color: #cbd5e1;
-  font-size: 13px;
-  line-height: 18px;
-}
-
 .connection-status {
   display: flex;
   align-items: center;
@@ -644,12 +613,6 @@ const createClientMessageId = () => {
 }
 
 @media (max-width: 360px) {
-  .team-info-card {
-    padding: 16px;
-  }
-  .refresh-button {
-    padding: 0 12px;
-  }
   .message-bubble {
     padding: 12px 18px;
   }
