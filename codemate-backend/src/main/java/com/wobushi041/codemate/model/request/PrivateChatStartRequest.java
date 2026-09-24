@@ -12,10 +12,12 @@ import java.io.Serializable;
 @Data
 public class PrivateChatStartRequest implements Serializable {
 
-    private static final long serialVersionUID = 1L;
-
     /**
-     * 目标联系用户 ID
+     * 目标联系用户 id
      */
     private Long targetUserId;
+
+    /// 序列化字段 ///
+    private static final long serialVersionUID = 1L;
+
 }

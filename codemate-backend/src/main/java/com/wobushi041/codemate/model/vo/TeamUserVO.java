@@ -5,16 +5,16 @@ import lombok.Data;
 import java.io.Serializable;
 import java.util.Date;
 
+/**
+ * 队伍用户信息视图对象
+ *
+ * @author wobushi041
+ */
 @Data
 public class TeamUserVO implements Serializable {
 
-
-    private static final long serialVersionUID = 9138973079051132588L;
-
-
-
     /**
-     * id
+     * 队伍 id
      */
     private Long id;
 
@@ -24,7 +24,7 @@ public class TeamUserVO implements Serializable {
     private String name;
 
     /**
-     * 描述
+     * 队伍描述
      */
     private String description;
 
@@ -39,12 +39,12 @@ public class TeamUserVO implements Serializable {
     private Date expireTime;
 
     /**
-     * 用户id
+     * 创建人用户 id
      */
     private Long userId;
 
     /**
-     * 0 - 公开，1 - 私有，2 - 加密
+     * 队伍状态 0 - 公开 1 - 私有 2 - 加密
      */
     private Integer status;
 
@@ -64,14 +64,16 @@ public class TeamUserVO implements Serializable {
     private UserVO createUser;
 
     /**
-     * 已加入的用户数
+     * 已加入队伍的用户数量
      */
     private Integer hasJoinNum;
 
     /**
-     * 是否已加入队伍
-     * 用于前端展示加入队伍状态
+     * 当前用户是否已加入该队伍
      */
     private boolean hasJoin = false;
+
+    /// 序列化字段 ///
+    private static final long serialVersionUID = 9138973079051132588L;
 
 }

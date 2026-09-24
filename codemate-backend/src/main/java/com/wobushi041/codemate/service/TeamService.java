@@ -13,61 +13,63 @@ import java.util.List;
 
 /**
  * 队伍服务
+ *
+ * @author wobushi041
  */
 public interface TeamService extends IService<Team> {
 
     /**
      * 创建队伍
      *
-     * @param team
-     * @param loginUser
-     * @return
+     * @param team      待创建的队伍实体
+     * @param loginUser 当前登录用户
+     * @return 新创建队伍的 id
      */
     long addTeam(Team team, User loginUser);
 
     /**
-     * 搜索队伍
+     * 搜索队伍列表
      *
-     * @param teamQuery
-     * @param isAdmin
-     * @return
+     * @param teamQuery 队伍查询条件封装
+     * @param isAdmin   是否为管理员
+     * @return 队伍与关联成员视图列表
      */
     List<TeamUserVO> listTeams(TeamQuery teamQuery, boolean isAdmin);
 
     /**
-     * 更新队伍
+     * 更新队伍信息
      *
-     * @param teamUpdateRequest
-     * @param loginUser
-     * @return
+     * @param teamUpdateRequest 队伍更新请求参数
+     * @param loginUser         当前登录用户
+     * @return 是否更新成功
      */
     boolean updateTeam(TeamUpdateRequest teamUpdateRequest, User loginUser);
 
     /**
      * 加入队伍
      *
-     * @param teamJoinRequest
-     * @return
+     * @param teamJoinRequest 加入队伍请求参数
+     * @param loginUser       当前登录用户
+     * @return 是否加入成功
      */
     boolean joinTeam(TeamJoinRequest teamJoinRequest, User loginUser);
 
     /**
      * 退出队伍
      *
-     * @param teamQuitRequest
-     * @param loginUserFromRequest
-     * @return
+     * @param teamQuitRequest      退出队伍请求参数
+     * @param loginUserFromRequest 当前登录用户
+     * @return 是否退出成功
      */
     boolean quitTeam(TeamQuitRequest teamQuitRequest, User loginUserFromRequest);
-
-    // [加入学习圈](https://t.zsxq.com/0emozsIJh) 从 0 到 1 项目实战，经验拉满！10+ 原创项目手把手教程、1000+ 项目经验笔记、7 日项目提升训练营、60+ 编程经验分享直播
 
     /**
      * 删除（解散）队伍
      *
-     * @param id
-     * @param loginUser
-     * @return
+     * @param id        待解散队伍的 id
+     * @param loginUser 当前登录用户
+     * @return 是否解散成功
      */
     boolean deleteTeam(Long id, User loginUser);
+
 }

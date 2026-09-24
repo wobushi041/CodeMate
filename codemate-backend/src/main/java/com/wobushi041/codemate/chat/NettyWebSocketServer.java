@@ -2,6 +2,7 @@ package com.wobushi041.codemate.chat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wobushi041.codemate.service.ChatRoomService;
+import com.wobushi041.codemate.service.PrivateChatService;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
@@ -13,8 +14,8 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
-import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.session.Session;
 import org.springframework.session.SessionRepository;
@@ -23,21 +24,7 @@ import org.springframework.stereotype.Component;
 /**
  * Netty WebSocket 服务端启动类
  *
- * 基于 Netty 主从 Reactor 线程模型构建的高性能异步长连接服务，实现 SmartLifecycle 接口，
- * 由 Spring 容器自动托管其生命周期的启动与平滑停机。
- *
- * 线程模型架构：
- * - BossGroup：单线程 Reactor，专门负责监听客户端 TCP 连接接入事件
- * - WorkerGroup：多线程 Reactor（默认为 CPU 核心数 * 2），负责处理已连接 Channel 的网络 I/O 读写与编解码
- *
- * Pipeline 处理器链编排顺序：
- * 1. HttpServerCodec：HTTP 编解码器
- * 2. HttpObjectAggregator：HTTP 消息聚合器（限制最大请求体为 64KB）
- * 3. SessionHandshakeAuthHandler：自定义 Spring Session Redis 握手鉴权处理器
- * 4. WebSocketServerProtocolHandler：Netty 官方 WebSocket 协议处理器（完成协议升级与帧处理）
- * 5. ChatConnectionHandler：自定义聊天室业务消息分发与连接生命周期处理器
- *
- * @author 硫酸铜
+ * @author wobushi041
  */
 @Component
 @Slf4j
@@ -45,42 +32,42 @@ import org.springframework.stereotype.Component;
 public class NettyWebSocketServer implements SmartLifecycle {
 
     /**
-     * Netty WebSocket 服务配置参数
+     * 注入 Netty WebSocket 服务配置参数依赖
      */
     private final NettyWebSocketProperties properties;
 
     /**
-     * Spring Session 数据仓储，用于基于分布式 Redis 会话校验登录态
+     * 注入 Spring Session 数据仓储依赖
      */
     private final SessionRepository<? extends Session> sessionRepository;
 
     /**
-     * 聊天室通道会话管理器，维护队伍与客户端 Channel 的映射
+     * 注入聊天室通道会话管理器依赖
      */
     private final ChatChannelManager chatChannelManager;
 
     /**
-     * 聊天室业务服务层接口
+     * 注入队伍聊天室业务服务依赖
      */
     private final ChatRoomService chatRoomService;
 
     /**
-     * 单人私聊业务服务层接口
+     * 注入单人私聊业务服务依赖
      */
-    private final com.wobushi041.codemate.service.PrivateChatService privateChatService;
+    private final PrivateChatService privateChatService;
 
     /**
-     * Jackson JSON 序列化工具类
+     * 注入 Jackson JSON 序列化工具依赖
      */
     private final ObjectMapper objectMapper;
 
     /**
-     * 主 Reactor 线程池：负责接收客户端的 TCP 连接请求
+     * 主 Reactor 线程池，负责接收客户端 TCP 连接请求
      */
     private EventLoopGroup bossGroup;
 
     /**
-     * 从 Reactor 线程池：负责处理各连接 Channel 的网络 I/O 与业务流水线处理
+     * 从 Reactor 线程池，负责处理各连接 Channel 的网络 I/O 与业务流水线
      */
     private EventLoopGroup workerGroup;
 
@@ -90,41 +77,54 @@ public class NettyWebSocketServer implements SmartLifecycle {
     private Channel serverChannel;
 
     /**
-     * 标记服务当前是否处于运行状态（volatile 保证线程可见性）
+     * 标记服务当前是否处于运行状态（volatile 保证多线程可见性）
      */
     private volatile boolean running;
 
     /**
-     * 启动 Netty WebSocket 服务端
-     *
-     * 初始化主从线程组、绑定端口并装配 ChannelPipeline 责任链。
+     * 启动 Netty WebSocket 服务端，初始化线程组并绑定监听端口
      */
     @Override
     public void start() {
+        // 若配置未启用或服务已处于运行状态，则直接跳过
         if (!properties.isEnabled() || running) {
             return;
         }
+
+        // 初始化主从 Reactor 线程组
         bossGroup = new NioEventLoopGroup(1);
         workerGroup = new NioEventLoopGroup();
+
+        // 装配 ServerBootstrap 管道处理器链并绑定监听端口
         try {
             ServerBootstrap bootstrap = new ServerBootstrap()
                     .group(bossGroup, workerGroup)
                     .channel(NioServerSocketChannel.class)
                     .childHandler(new ChannelInitializer<SocketChannel>() {
+
+                        /**
+                         * 初始化客户端 SocketChannel 的处理器责任链
+                         *
+                         * @param channel 客户端 Socket 通道
+                         */
                         @Override
                         protected void initChannel(SocketChannel channel) {
+                            // 依次向 Pipeline 注册 HTTP 编解码、聚合、Session 鉴权、WebSocket 协议升级与业务处理器
                             ChannelPipeline pipeline = channel.pipeline();
                             pipeline.addLast(new HttpServerCodec());
                             pipeline.addLast(new HttpObjectAggregator(65536));
                             pipeline.addLast(new SessionHandshakeAuthHandler(sessionRepository));
                             pipeline.addLast(new WebSocketServerProtocolHandler(properties.getPath(), null, true));
-                            pipeline.addLast(new ChatConnectionHandler(chatChannelManager, chatRoomService, privateChatService, objectMapper));
+                            pipeline.addLast(new ChatConnectionHandler(
+                                    chatChannelManager, chatRoomService, privateChatService, objectMapper));
                         }
+
                     });
             serverChannel = bootstrap.bind(properties.getPort()).syncUninterruptibly().channel();
             running = true;
             log.info("netty websocket server started, port={}, path={}", properties.getPort(), properties.getPath());
         } catch (RuntimeException e) {
+            // 启动异常时优雅关闭线程组并向上抛出异常
             shutdownGroups();
             throw e;
         }
@@ -135,12 +135,17 @@ public class NettyWebSocketServer implements SmartLifecycle {
      */
     @Override
     public void stop() {
+        // 若服务未运行则直接返回
         if (!running) {
             return;
         }
+
+        // 关闭服务端监听通道
         if (serverChannel != null) {
             serverChannel.close().syncUninterruptibly();
         }
+
+        // 释放主从线程组并更新运行状态标记
         shutdownGroups();
         running = false;
         log.info("netty websocket server stopped");
@@ -153,6 +158,7 @@ public class NettyWebSocketServer implements SmartLifecycle {
      */
     @Override
     public boolean isRunning() {
+        // 返回服务运行状态标记
         return running;
     }
 
@@ -160,11 +166,15 @@ public class NettyWebSocketServer implements SmartLifecycle {
      * 优雅关闭并释放 Boss 和 Worker 线程组
      */
     private void shutdownGroups() {
+        // 优雅关闭 Boss 线程组
         if (bossGroup != null) {
             bossGroup.shutdownGracefully();
         }
+
+        // 优雅关闭 Worker 线程组
         if (workerGroup != null) {
             workerGroup.shutdownGracefully();
         }
     }
+
 }

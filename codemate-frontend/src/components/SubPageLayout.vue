@@ -10,7 +10,9 @@
       >
         <ArrowLeft :size="24" :stroke-width="2" />
       </button>
-      <h1>{{ title }}</h1>
+      <slot name="headerCenter">
+        <h1>{{ title }}</h1>
+      </slot>
       <div v-if="$slots.headerRight" class="team-page-header__right">
         <slot name="headerRight" />
       </div>

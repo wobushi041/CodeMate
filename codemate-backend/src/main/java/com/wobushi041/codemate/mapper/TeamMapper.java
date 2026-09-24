@@ -1,18 +1,13 @@
 package com.wobushi041.codemate.mapper;
 
-import com.wobushi041.codemate.model.domain.Team;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.wobushi041.codemate.model.domain.Team;
 
 /**
-* @author 硫酸铜
-* @description 针对表【team(队伍)】的数据库操作Mapper
-* @createDate 2026-04-15 13:21:52
-* @Entity com.wobushi041.codemate.model.domain.Team
-*/
+ * 队伍 Mapper 接口
+ *
+ * @author wobushi041
+ */
 public interface TeamMapper extends BaseMapper<Team> {
 
 }
-
-
-
-

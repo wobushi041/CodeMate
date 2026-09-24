@@ -8,17 +8,23 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
-import java.io.Serializable;
-
 /**
- * knife4j配置类,openapi3
+ * Knife4j OpenAPI 3 接口文档配置
+ *
+ * @author wobushi041
  */
 @Configuration
 @Profile({"dev", "test"})
-public class Knife4jConfig  {
+public class Knife4jConfig {
 
+    /**
+     * 构建 OpenAPI 文档全局基础信息
+     *
+     * @return OpenAPI 全局文档配置实例
+     */
     @Bean
     public OpenAPI openAPI() {
+        // 组装接口文档标题、版本号、联系人与描述信息
         return new OpenAPI()
                 .info(new Info()
                         .title("CodeMate 智能编程协同平台接口文档")
@@ -26,14 +32,19 @@ public class Knife4jConfig  {
                         .contact(new Contact().name("041"))
                         .description("CodeMate 后端接口文档"));
     }
+
+    /**
+     * 构建默认接口分组并指定 Controller 扫描包路径
+     *
+     * @return 接口分组配置实例
+     */
     @Bean
     public GroupedOpenApi userApi() {
+        // 扫描 controller 包下的全部接口并归入 default 分组
         return GroupedOpenApi.builder()
                 .group("default")
                 .packagesToScan("com.wobushi041.codemate.controller")
-              //.pathsToMatch("/**")
                 .build();
     }
-
 
 }

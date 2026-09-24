@@ -14,7 +14,7 @@
       <CalendarDays :size="20" class="trigger-icon" />
     </button>
 
-    <!-- 原位展开的日历 + 快捷时间选择面板 -->
+    <!-- 屏幕内居中的日历 + 快捷时间选择面板 -->
     <transition name="picker-fade">
       <div v-if="showCalendar" class="calendar-panel">
         <!-- 日历头部（月份切换） -->
@@ -515,19 +515,25 @@ onBeforeUnmount(() => {
 
 /* 展开面板（玻璃拟态高质感设计） */
 .calendar-panel {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  right: 0;
+  position: fixed;
+  top: 50%;
+  left: 50%;
   z-index: 60;
   box-sizing: border-box;
+  width: min(340px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
   padding: 18px 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 18px;
   background: rgba(26, 36, 54, 0.96);
   box-shadow: 0 22px 45px rgba(2, 6, 23, 0.6);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
+  transform: translate(-50%, -50%);
 }
 
 .calendar-header {
@@ -564,7 +570,7 @@ onBeforeUnmount(() => {
 
 .calendar-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 3px;
   text-align: center;
   font-size: 12px;
@@ -578,9 +584,11 @@ onBeforeUnmount(() => {
 
 .calendar-day-btn {
   display: flex;
+  min-width: 0;
   height: 34px;
   align-items: center;
   justify-content: center;
+  padding: 0;
   border: 0;
   border-radius: 8px;
   color: #f8fafc;
@@ -646,13 +654,14 @@ onBeforeUnmount(() => {
   font-family: monospace;
 }
 
-/* 滚轮选择器（高度进一步收窄至 130px，宽度收窄至 220px 居中，单行 26px） */
+/* 滚轮选择器（高度 130px，最大宽度 260px，单行 26px） */
 .time-picker-roller {
   position: relative;
   display: flex;
   width: 100%;
-  max-width: 220px;
+  max-width: 260px;
   height: 130px;
+  box-sizing: border-box;
   margin: 0 auto;
   align-items: center;
   justify-content: center;
@@ -811,6 +820,6 @@ onBeforeUnmount(() => {
 .picker-fade-enter-from,
 .picker-fade-leave-to {
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translate(-50%, -48%);
 }
 </style>

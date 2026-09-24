@@ -1,4 +1,4 @@
-package com.wobushi041.codemate.service.impl;//package com.wobushi041.codemate.service.impl;
+package com.wobushi041.codemate.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -33,75 +33,95 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-
+/**
+ * 队伍服务实现
+ *
+ * @author wobushi041
+ */
 @Service
 public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
         implements TeamService {
 
+    /**
+     * 注入用户队伍关联服务依赖
+     */
     @Resource
     private UserTeamService userTeamService;
 
+    /**
+     * 注入用户服务依赖
+     */
     @Resource
     private UserService userService;
 
+    /**
+     * 注入 Redisson 客户端依赖
+     */
     @Resource
     private RedissonClient redissonClient;
 
+    /**
+     * 校验队伍参数并在事务中写入队伍主表与用户队伍关系表
+     *
+     * @param team      待创建的队伍实体
+     * @param loginUser 当前登录用户
+     * @return 新创建队伍的 id
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public long addTeam(Team team, User loginUser) {
-        // 1. 请求参数是否为空？
+        // 校验请求参数与当前登录状态
         if (team == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        // 2. 是否登录，未登录不允许创建
         if (loginUser == null) {
             throw new BusinessException(ErrorCode.NOT_LOGIN);
         }
         final long userId = loginUser.getId();
-        // 3. 校验信息
-        //   1. 队伍人数 > 1 且 <= 20
+
+        // 校验队伍人数上限、标题长度与描述长度
         int maxNum = Optional.ofNullable(team.getMaxNum()).orElse(0);
         if (maxNum < 1 || maxNum > 20) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "队伍人数不满足要求");
         }
-        //   2. 队伍标题 <= 20
         String name = team.getName();
         if (StringUtils.isBlank(name) || name.length() > 20) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "队伍标题不满足要求");
         }
-        //   3. 描述 <= 512
         String description = team.getDescription();
         if (StringUtils.isNotBlank(description) && description.length() > 512) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "队伍描述过长");
         }
-        //   4. status 是否公开（int）不传默认为 0（公开）
+
+        // 校验队伍公开状态及加密房间密码规则
         int status = Optional.ofNullable(team.getStatus()).orElse(0);
         TeamStatusEnum statusEnum = TeamStatusEnum.getEnumByValue(status);
         if (statusEnum == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "队伍状态不满足要求");
         }
-        //   5. 如果 status 是加密状态，一定要有密码，且密码 <= 32
         String password = team.getPassword();
         if (TeamStatusEnum.SECRET.equals(statusEnum)) {
             if (StringUtils.isBlank(password) || password.length() > 32) {
                 throw new BusinessException(ErrorCode.PARAMS_ERROR, "密码设置不正确");
             }
         }
-        // 6. 超时时间 > 当前时间
+
+        // 校验队伍过期时间是否晚于当前时间
         Date expireTime = team.getExpireTime();
         if (new Date().after(expireTime)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "超时时间 > 当前时间");
         }
-        // 7. 校验用户最多创建 5 个队伍
-        // todo 有 bug，可能同时创建 100 个队伍
+
+        // 校验当前用户已创建队伍数量是否超过 5 个上限
+        // TODO: 存在并发创建超限问题，待引入分布式锁控制并发创建
         QueryWrapper<Team> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("userId", userId);
         long hasTeamNum = this.count(queryWrapper);
         if (hasTeamNum >= 5) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户最多创建 5 个队伍");
         }
-        // 8. 插入队伍信息到队伍表
+
+        // 插入队伍信息至队伍主表
         team.setId(null);
         team.setUserId(userId);
         boolean result = this.save(team);
@@ -109,7 +129,8 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
         if (!result || teamId == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "创建队伍失败");
         }
-        // 9. 插入用户  => 队伍关系到关系表
+
+        // 插入创建人与队伍的关联记录至关系表
         UserTeam userTeam = new UserTeam();
         userTeam.setUserId(userId);
         userTeam.setTeamId(teamId);
@@ -121,79 +142,66 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
         return teamId;
     }
 
-
     /**
-     * 查询队伍列表
-     * 根据指定查询内容和用户权限，在从数据库获取符合条件的队伍列表
-     * @param teamQuery 查询条件对象，继承于PageRequest，包含了筛选队伍的各种条件。
-     * @param isAdmin   布尔值，当前用户是否为管理员，用于权限判断。
-     * @return List<TeamUserVO>，包含队伍信息的列表。
+     * 构建动态查询条件从 MySQL 检索未过期队伍并关联脱敏创建人信息
+     *
+     * @param teamQuery 队伍查询条件封装
+     * @param isAdmin   当前用户是否为管理员
+     * @return 队伍与关联创建人视图列表
      */
     @Override
     public List<TeamUserVO> listTeams(TeamQuery teamQuery, boolean isAdmin) {
-    // 创建查询条件包装器
+        // 组装队伍动态筛选查询条件
         QueryWrapper<Team> queryWrapper = new QueryWrapper<>();
-        // 组合查询条件
         if (teamQuery != null) {
-        // 处理ID查询条件
             Long id = teamQuery.getId();
             if (id != null && id > 0) {
                 queryWrapper.eq("id", id);
             }
-        // 处理ID列表查询条件
             List<Long> idList = teamQuery.getIdList();
             if (CollectionUtils.isNotEmpty(idList)) {
                 queryWrapper.in("id", idList);
             }
-        // 处理搜索文本查询条件
             String searchText = teamQuery.getSearchText();
             if (StringUtils.isNotBlank(searchText)) {
                 queryWrapper.and(qw -> qw.like("name", searchText).or().like("description", searchText));
             }
-        // 处理队伍名称查询条件
             String name = teamQuery.getName();
             if (StringUtils.isNotBlank(name)) {
                 queryWrapper.like("name", name);
             }
-        // 处理队伍描述查询条件
             String description = teamQuery.getDescription();
             if (StringUtils.isNotBlank(description)) {
                 queryWrapper.like("description", description);
             }
-        // 处理最大人数查询条件
             Integer maxNum = teamQuery.getMaxNum();
-            // 查询最大人数相等的
             if (maxNum != null && maxNum > 0) {
                 queryWrapper.eq("maxNum", maxNum);
             }
-        // 处理创建人查询条件
             Long userId = teamQuery.getUserId();
-            // 根据创建人来查询
             if (userId != null && userId > 0) {
                 queryWrapper.eq("userId", userId);
             }
-            // 根据状态来查询
             Integer status = teamQuery.getStatus();
-            // 根据状态值获取对应的团队状态枚举
-            // 使用TeamStatusEnum的getEnumByValue方法，传入status参数，获取对应的枚举实例
             TeamStatusEnum statusEnum = TeamStatusEnum.getEnumByValue(status);
             if (statusEnum == null) {
                 statusEnum = TeamStatusEnum.PUBLIC;
             }
             if (!isAdmin && statusEnum.equals(TeamStatusEnum.PRIVATE)) {
-                throw new BusinessException(ErrorCode.NO_AUTH,"非管理员无权查看私有队伍");
+                throw new BusinessException(ErrorCode.NO_AUTH, "非管理员无权查看私有队伍");
             }
             queryWrapper.eq("status", statusEnum.getValue());
         }
-        // 不展示已过期的队伍
-        // expireTime is null or expireTime > now()
+
+        // 过滤已过期的队伍并执行数据库查询
         queryWrapper.and(qw -> qw.gt("expireTime", new Date()).or().isNull("expireTime"));
         List<Team> teamList = this.list(queryWrapper);
         if (CollectionUtils.isEmpty(teamList)) {
             return new ArrayList<>();
         }
+
+        // 关联查询队伍创建人信息并组装脱敏视图列表
         List<TeamUserVO> teamUserVOList = new ArrayList<>();
-        // 关联查询创建人的用户信息
         for (Team team : teamList) {
             Long userId = team.getUserId();
             if (userId == null) {
@@ -202,7 +210,6 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
             User user = userService.getById(userId);
             TeamUserVO teamUserVO = new TeamUserVO();
             BeanUtils.copyProperties(team, teamUserVO);
-            // 脱敏用户信息
             if (user != null) {
                 UserVO userVO = new UserVO();
                 BeanUtils.copyProperties(user, userVO);
@@ -213,8 +220,16 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
         return teamUserVOList;
     }
 
+    /**
+     * 校验操作权限与房间状态规则并按主键更新 MySQL 队伍记录
+     *
+     * @param teamUpdateRequest 队伍更新请求参数
+     * @param loginUser         当前登录用户
+     * @return 是否更新成功
+     */
     @Override
     public boolean updateTeam(TeamUpdateRequest teamUpdateRequest, User loginUser) {
+        // 校验更新参数与目标队伍存在性
         if (teamUpdateRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
@@ -226,11 +241,13 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
         if (oldTeam == null) {
             throw new BusinessException(ErrorCode.NULL_ERROR, "队伍不存在");
         }
-        // 只有管理员或者队伍的创建者可以修改
+
+        // 校验当前操作者是否为队长或管理员
         if (oldTeam.getUserId() != loginUser.getId() && !userService.isAdmin(loginUser)) {
             throw new BusinessException(ErrorCode.NO_AUTH);
         }
 
+        // 校验变更后的队伍状态与加密房间密码规则
         Integer status = teamUpdateRequest.getStatus();
         if (status != null) {
             TeamStatusEnum statusEnum = TeamStatusEnum.getEnumByValue(status);
@@ -242,6 +259,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
             }
         }
 
+        // 填充非空更新字段并执行主键更新
         Team updateTeam = new Team();
         updateTeam.setId(id);
         if (teamUpdateRequest.getName() != null) {
@@ -263,47 +281,40 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
     }
 
     /**
-      * 加入队伍的方法
-      * @param teamJoinRequest 队伍加入请求对象，包含队伍ID和密码等信息
-      * @param loginUser 当前登录用户对象
-      * @return boolean 加入队伍是否成功
-    */
+     * 基于 Redisson 分布式锁校验加队上限与房间容量并写入用户队伍关联记录
+     *
+     * @param teamJoinRequest 加入队伍请求参数
+     * @param loginUser       当前登录用户
+     * @return 是否加入成功
+     */
     @Override
     public boolean joinTeam(TeamJoinRequest teamJoinRequest, User loginUser) {
-    // 检查请求参数是否为空
+        // 校验请求参数及目标队伍的有效期、公开状态与访问密码
         if (teamJoinRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-    // 获取请求中的队伍ID
         Long teamId = teamJoinRequest.getTeamId();
-    // 根据ID获取队伍信息
         Team team = getTeamById(teamId);
-    // 获取队伍的过期时间
         Date expireTime = team.getExpireTime();
-    // 检查队伍是否已过期
         if (expireTime != null && expireTime.before(new Date())) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "队伍已过期");
         }
-    // 获取队伍状态
         Integer status = team.getStatus();
-    // 将状态值转换为对应的枚举类型
         TeamStatusEnum teamStatusEnum = TeamStatusEnum.getEnumByValue(status);
-    // 检查队伍是否为私有队伍
         if (TeamStatusEnum.PRIVATE.equals(teamStatusEnum)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "禁止加入私有队伍");
         }
-    // 获取用户输入的密码
         String password = teamJoinRequest.getPassword();
         if (TeamStatusEnum.SECRET.equals(teamStatusEnum)) {
             if (StringUtils.isBlank(password) || !password.equals(team.getPassword())) {
                 throw new BusinessException(ErrorCode.PARAMS_ERROR, "密码错误");
             }
         }
+
+        // 获取 Redisson 分布式锁，串行校验用户加队数量、重复加队与队伍满员状态
         long userId = loginUser.getId();
-        // 只有一个线程能获取到锁
         RLock lock = redissonClient.getLock("codemate:joinTeam:join_team");
         try {
-            // 抢到锁并执行
             while (true) {
                 if (lock.tryLock(0, -1, TimeUnit.MILLISECONDS)) {
                     System.out.println("getLock: " + Thread.currentThread().getId());
@@ -313,7 +324,6 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
                     if (hasJoinNum > 5) {
                         throw new BusinessException(ErrorCode.PARAMS_ERROR, "最多创建和加入 5 个队伍");
                     }
-                    // 不能重复加入已加入的队伍
                     userTeamQueryWrapper = new QueryWrapper<>();
                     userTeamQueryWrapper.eq("userId", userId);
                     userTeamQueryWrapper.eq("teamId", teamId);
@@ -321,12 +331,10 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
                     if (hasUserJoinTeam > 0) {
                         throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户已加入该队伍");
                     }
-                    // 已加入队伍的人数
                     long teamHasJoinNum = this.countTeamUserByTeamId(teamId);
                     if (teamHasJoinNum >= team.getMaxNum()) {
                         throw new BusinessException(ErrorCode.PARAMS_ERROR, "队伍已满");
                     }
-                    // 修改队伍信息
                     UserTeam userTeam = new UserTeam();
                     userTeam.setUserId(userId);
                     userTeam.setTeamId(teamId);
@@ -338,7 +346,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
             log.error("doCacheRecommendUser error", e);
             return false;
         } finally {
-            // 只能释放自己的锁
+            // 仅释放当前线程持有的分布式锁
             if (lock.isHeldByCurrentThread()) {
                 System.out.println("unLock: " + Thread.currentThread().getId());
                 lock.unlock();
@@ -347,105 +355,102 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
     }
 
     /**
-     * 退出队伍操作。
-     * 该方法允许用户退出已加入的队伍。它首先验证用户和队伍的有效性，然后根据队伍成员数量处理不同情况：
-     * 如果用户是队伍中的唯一成员，则会解散队伍；
-     * 如果用户是队长且队伍中还有其他成员，则会将队长职位转移给下一个成员。
-     * @param teamQuitRequest 包含队伍ID和必要信息的请求对象。
-     * @param loginUserFromRequest 当前登录的用户信息，用于验证操作权限。
-     * @return 返回布尔值，表示退出操作是否成功。
-     * @throws BusinessException 抛出业务异常，例如参数错误、未找到队伍、未加入指定队伍、或在队伍操作过程中发生错误。
+     * 在事务中处理成员退出、单人队伍自动解散或队长顺位转移并移除关联关系
+     *
+     * @param teamQuitRequest      退出队伍请求参数
+     * @param loginUserFromRequest 当前登录用户
+     * @return 是否退出成功
      */
     @Transactional(rollbackFor = Exception.class)
     @Override
     public boolean quitTeam(TeamQuitRequest teamQuitRequest, User loginUserFromRequest) {
-        // 参数校验：确保请求对象不为空
-        if(teamQuitRequest == null){
+        // 校验退队请求参数、队伍存在性及当前用户的入队状态
+        if (teamQuitRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        // 获取并校验队伍ID的有效性
         Long teamId = teamQuitRequest.getTeamId();
-        if(teamId == null || teamId <= 0){
+        if (teamId == null || teamId <= 0) {
             throw new BusinessException(ErrorCode.NULL_ERROR);
         }
-        // 获取队伍信息，确认队伍存在
         Team team = this.getById(teamId);
-        if(team == null){
+        if (team == null) {
             throw new BusinessException(ErrorCode.NULL_ERROR, "队伍不存在");
         }
-        // 获取当前登录用户的ID
         long userId = loginUserFromRequest.getId();
-        // 构建查询条件，检查用户是否为队伍成员
         QueryWrapper<UserTeam> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("userId", userId)
-                    .eq("teamId", teamId);
+                .eq("teamId", teamId);
         long count = userTeamService.count(queryWrapper);
-        if(count == 0){
+        if (count == 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "未加入队伍");
         }
-        // 获取队伍当前的成员数
+
+        // 根据队伍剩余人数执行解散队伍或队长顺位转让
         long teamHasJoinNum = this.countTeamUserByTeamId(teamId);
-        if(teamHasJoinNum == 1){
-            // 如果队伍只剩1人，则解散队伍
+        if (teamHasJoinNum == 1) {
             this.removeById(teamId);
-        } else {
-            // 如果队伍有多于1人
-            if(team.getUserId() == userId){
-                // 如果当前用户是队长，需要转移队长职位
+        }
+        // 队伍剩余多人且当前退出者为队长时，将队长职位转移给最早加入的下一位成员
+        else {
+            if (team.getUserId() == userId) {
                 QueryWrapper<UserTeam> userTeamQueryWrapper = new QueryWrapper<>();
                 userTeamQueryWrapper.eq("teamId", teamId);
                 userTeamQueryWrapper.last("order by id asc limit 2");
                 List<UserTeam> userTeamList = userTeamService.list(userTeamQueryWrapper);
-                // 确保有足够的用户列表进行队长转移
-                if(CollectionUtils.isEmpty(userTeamList) || userTeamList.size() <= 1){
+                if (CollectionUtils.isEmpty(userTeamList) || userTeamList.size() <= 1) {
                     throw new BusinessException(ErrorCode.SYSTEM_ERROR);
                 }
-                // 获取新的队长用户
                 UserTeam nextUserTeam = userTeamList.get(1);
                 Long nextTeamLeaderId = nextUserTeam.getUserId();
-                // 更新队伍信息，设置新的队长
                 Team updateTeam = new Team();
                 updateTeam.setId(teamId);
                 updateTeam.setUserId(nextTeamLeaderId);
                 boolean result = this.updateById(updateTeam);
-                if(!result){
+                if (!result) {
                     throw new BusinessException(ErrorCode.SYSTEM_ERROR, "更新队伍队长失败");
                 }
             }
         }
-        // 移除用户和队伍的关联关系
+
+        // 移除当前用户与队伍的关联关系
         return userTeamService.remove(queryWrapper);
     }
 
-
-    @Transactional(rollbackFor = Exception.class)//AOP应用场景，第一步： 删除关联表（UserTeam）中的数据（移除所有加入该队伍的用户）。第二步： 删除主表（Team）中的数据（删除队伍本身）。rollback回滚，原子性
+    /**
+     * 校验队长权限并在事务中级联删除用户队伍关联记录与队伍主表记录
+     *
+     * @param id        待解散队伍的 id
+     * @param loginUser 当前登录用户
+     * @return 是否解散成功
+     */
+    @Transactional(rollbackFor = Exception.class)
     @Override
     public boolean deleteTeam(Long id, User loginUser) {
-        // 校验队伍是否存在
+        // 校验队伍是否存在及当前用户是否为队长
         Team team = getTeamById(id);
         long teamId = team.getId();
-        // 校验你是不是队伍的队长
         if (team.getUserId() != loginUser.getId()) {
             throw new BusinessException(ErrorCode.NO_AUTH, "你不是创建者，无访问权限");
         }
-        // 移除所有加入队伍的关联信息
+
+        // 移除该队伍下所有成员关联记录并删除队伍主记录
         QueryWrapper<UserTeam> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("teamId", teamId);
         boolean result = userTeamService.remove(queryWrapper);
         if (!result) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "删除队伍失败");
         }
-        // 删除队伍本身
         return this.removeById(teamId);
     }
 
     /**
-     * 根据 id 获取队伍信息
+     * 根据主键查询队伍实体并校验其存在性
      *
-     * @param teamId joinTeam,deleteTeam方法调用
-     * @return team
+     * @param teamId 队伍 id
+     * @return 队伍实体对象
      */
     private Team getTeamById(Long teamId) {
+        // 校验队伍 id 合法性并查询数据库
         if (teamId == null || teamId <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
@@ -457,18 +462,16 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
     }
 
     /**
-     * 获取某队伍当前人数
+     * 统计指定队伍在用户队伍关系表中的当前成员总数
      *
-     * @param teamId
-     * @return teamHasJoinNum
+     * @param teamId 队伍 id
+     * @return 队伍当前成员总数
      */
     private long countTeamUserByTeamId(long teamId) {
+        // 按队伍 id 统计关联表记录数
         QueryWrapper<UserTeam> userTeamQueryWrapper = new QueryWrapper<>();
         userTeamQueryWrapper.eq("teamId", teamId);
         return userTeamService.count(userTeamQueryWrapper);
     }
+
 }
-
-
-
-

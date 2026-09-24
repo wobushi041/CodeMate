@@ -19,22 +19,19 @@ import java.util.Date;
 @Data
 public class PrivateChatSession implements Serializable {
 
-    @TableField(exist = false)
-    private static final long serialVersionUID = 1L;
-
     /**
-     * 会话 ID
+     * 会话 id
      */
     @TableId(type = IdType.AUTO)
     private Long id;
 
     /**
-     * 用户1 ID (较小值)
+     * 用户 1 id（较小值）
      */
     private Long user1Id;
 
     /**
-     * 用户2 ID (较大值)
+     * 用户 2 id（较大值）
      */
     private Long user2Id;
 
@@ -59,9 +56,14 @@ public class PrivateChatSession implements Serializable {
     private Date updateTime;
 
     /**
-     * 逻辑删除 (0-未删除 1-已删除)
+     * 逻辑删除 0 - 未删除 1 - 已删除
      */
     @TableLogic
     @TableField("isDelete")
     private Integer isDelete;
+
+    /// 序列化字段 ///
+    @TableField(exist = false)
+    private static final long serialVersionUID = 1L;
+
 }

@@ -1,19 +1,20 @@
 package com.wobushi041.codemate.model.vo;
 
-
 import lombok.Data;
 
 import java.io.Serializable;
 import java.util.Date;
 
+/**
+ * 用户脱敏信息视图对象
+ *
+ * @author wobushi041
+ */
 @Data
 public class UserVO implements Serializable {
 
-
-    private static final long serialVersionUID = -4125063705679526933L;
-
     /**
-     * id
+     * 用户 id
      */
     private long id;
 
@@ -23,7 +24,7 @@ public class UserVO implements Serializable {
     private String userName;
 
     /**
-     * 账号
+     * 登录账号
      */
     private String userAccount;
 
@@ -43,22 +44,22 @@ public class UserVO implements Serializable {
     private String profile;
 
     /**
-     * 电话
+     * 电话号码
      */
     private String phone;
 
     /**
-     * 邮箱
+     * 电子邮箱
      */
     private String email;
 
     /**
-     * 标签列表 json
+     * 标签列表 JSON
      */
     private String tags;
 
     /**
-     * 状态 0 - 正常
+     * 用户状态 0 - 正常
      */
     private Integer userStatus;
 
@@ -82,5 +83,7 @@ public class UserVO implements Serializable {
      */
     private String planetCode;
 
+    /// 序列化字段 ///
+    private static final long serialVersionUID = -4125063705679526933L;
 
 }

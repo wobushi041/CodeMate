@@ -64,7 +64,7 @@ import {useRoute, useRouter} from 'vue-router';
 import {Eye, EyeOff, LoaderCircle} from 'lucide-vue-next';
 import {Toast} from 'vant';
 import myAxios from '../plugins/myAxios';
-import logo from '../assets/brand-logo.png';
+import logo from '../assets/brand-logo-dark.png';
 
 const router = useRouter();
 const route = useRoute();

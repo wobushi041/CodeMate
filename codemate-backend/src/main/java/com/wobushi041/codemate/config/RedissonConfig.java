@@ -10,37 +10,49 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Redisson配置类，用于配置Redisson客户端连接
- * Redisson是一个基于Redis的Java驻留式内存数据网格（In-Memory Data Grid），用于分布式应用程序，提供分布式Java对象和服务支持。
+ * Redisson 分布式客户端配置
+ *
+ * @author wobushi041
  */
 @Configuration
-// 用于将配置文件中以特定前缀开头的属性值映射到一个Java Bean 中。
 @ConfigurationProperties(prefix = "spring.data.redis")
 @Data
 public class RedissonConfig {
 
-    private String host;// Redis主机地址
-    private String port;// Redis端口号
-    private String password;// Redis密码
+    /**
+     * Redis 主机地址
+     */
+    private String host;
 
     /**
-     * 配置Redisson客户端连接
-     * @return 返回RedissonClient对象，用于与Redis交互
+     * Redis 端口号
+     */
+    private String port;
+
+    /**
+     * Redis 访问密码
+     */
+    private String password;
+
+    /**
+     * 构建并注册 RedissonClient 客户端连接实例
+     *
+     * @return RedissonClient 客户端实例
      */
     @Bean
     public RedissonClient redissonClient() {
-        // 1. 创建配置
+        // 初始化 Redisson 配置并指定 JSON 序列化编解码器与单节点数据库
         Config config = new Config();
-        // 显式指定 Redisson 的 JSON 序列化方式，不依赖 Spring 默认序列化器
         config.setCodec(new JsonJacksonCodec());
         String redisAddress = String.format("redis://%s:%s", host, port);
-        // 写到3库
         config.useSingleServer().setAddress(redisAddress).setDatabase(3);
 
+        // 若配置了非空密码则注入认证密码
         if (password != null && !password.trim().isEmpty()) {
             config.useSingleServer().setPassword(password);
         }
-        // 2. 创建实例
+
+        // 创建并返回 RedissonClient 实例
         RedissonClient redisson = Redisson.create(config);
         return redisson;
     }

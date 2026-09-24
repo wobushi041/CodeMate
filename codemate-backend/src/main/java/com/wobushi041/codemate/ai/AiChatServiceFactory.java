@@ -10,36 +10,52 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * AI 编程助手服务工厂
- * 手动组装 ChatMemory + RAG ContentRetriever + 流式模型
+ * AI 编程助手服务工厂配置
+ *
+ * @author wobushi041
  */
 @Configuration
 public class AiChatServiceFactory {
 
+    /**
+     * 注入 DeepSeek 普通聊天模型依赖
+     */
     @Autowired
     private ChatModel deepSeekChatModel;
 
+    /**
+     * 注入 DeepSeek 流式聊天模型依赖
+     */
     @Autowired
     private StreamingChatModel deepSeekStreamingChatModel;
 
+    /**
+     * 注入 RAG 内容检索器依赖
+     */
     @Autowired(required = false)
     private ContentRetriever contentRetriever;
 
+    /**
+     * 构建并注册 AI 编程助手服务实例
+     *
+     * @return AI 编程助手服务实例
+     */
     @Bean
     public AiChatService aiChatService() {
+        // 构建 AI 服务基础配置，组装聊天模型与滑动窗口会话记忆
         var builder = AiServices.builder(AiChatService.class)
-                // 聊天模型（普通 + 流式）
                 .chatModel(deepSeekChatModel)
                 .streamingChatModel(deepSeekStreamingChatModel)
-                // 会话记忆：每个用户独立，最多保留 20 条消息，滑动窗口实现
                 .chatMemoryProvider(memoryId ->
                         MessageWindowChatMemory.withMaxMessages(20));
 
-        // RAG 检索增强（Ollama 不可用时跳过）
+        // 若 RAG 内容检索器可用，则挂载检索增强能力
         if (contentRetriever != null) {
             builder.contentRetriever(contentRetriever);
         }
 
+        // 完成 AI 服务实例构建并返回
         return builder.build();
     }
+
 }

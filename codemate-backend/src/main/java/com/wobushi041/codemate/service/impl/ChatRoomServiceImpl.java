@@ -28,11 +28,9 @@ import java.util.Date;
 import java.util.Map;
 
 /**
- * 队伍聊天室核心业务服务实现类
+ * 队伍聊天室服务实现
  *
- * 负责队伍聊天室进房校验、群聊消息构建与广播分发，并驱动 MySQL 消息持久化及 Redis 异常容灾兜底。
- *
- * @author 硫酸铜
+ * @author wobushi041
  */
 @Service
 @Slf4j
@@ -50,59 +48,59 @@ public class ChatRoomServiceImpl implements ChatRoomService {
     private static final String DATE_PATTERN = "yyyy-MM-dd HH:mm:ss";
 
     /**
-     * 队伍基础服务
+     * 注入队伍服务依赖
      */
     private final TeamService teamService;
 
     /**
-     * 用户-队伍关联关系服务，用于队伍成员身份判定
+     * 注入用户队伍关联服务依赖
      */
     private final UserTeamService userTeamService;
 
     /**
-     * Netty 聊天通道会话管理器
+     * 注入 Netty 聊天通道管理依赖
      */
     private final ChatChannelManager chatChannelManager;
 
     /**
-     * 聊天消息持久化与缓存降级服务
+     * 注入聊天消息服务依赖
      */
     private final ChatMessageService chatMessageService;
 
     /**
-     * Jackson JSON 序列化工具
+     * 注入 Jackson 序列化依赖
      */
     private final ObjectMapper objectMapper;
 
     /**
-     * 用户加入指定队伍聊天室
+     * 校验队伍成员身份并将客户端 Netty 通道绑定至目标队伍房间
      *
-     * 校验入参及队伍成员合法性，若用户此前已在其他队伍房间中，先自动退出旧房间，再加入新房间并返回确认响应。
-     *
-     * @param teamId    队伍 ID
+     * @param teamId    队伍 id
      * @param loginUser 当前登录用户
      * @param channel   客户端 Netty 通道
      */
     @Override
     public void joinTeamRoom(Long teamId, User loginUser, Channel channel) {
+        // 校验入参合法性与队伍成员身份
         if (teamId == null || teamId <= 0 || loginUser == null || channel == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "加入聊天室参数错误");
         }
         ensureTeamMember(teamId, loginUser.getId());
+
+        // 若当前通道已绑定其他队伍房间，先自动退出旧房间
         Long oldTeamId = channel.attr(ChatAttributes.TEAM_ID).get();
         if (oldTeamId != null && !oldTeamId.equals(teamId)) {
             chatChannelManager.leaveRoom(oldTeamId, loginUser.getId(), channel);
         }
+
+        // 绑定新队伍房间属性并向客户端发送入房确认帧
         channel.attr(ChatAttributes.TEAM_ID).set(teamId);
         chatChannelManager.joinRoom(teamId, loginUser.getId(), channel);
         send(channel, ChatMessageResponse.joined(teamId));
     }
 
     /**
-     * 发送队伍聊天消息
-     *
-     * 校验用户房间归属及内容合法性后，立即向当前队伍所有在线成员广播消息帧；
-     * 紧接着执行双通道持久化：优先写入 MySQL，若写入异常则降级写入 Redis List 容灾缓存。
+     * 通过 Netty 广播队伍聊天消息并执行 MySQL 持久化与 Redis 容灾兜底
      *
      * @param loginUser 当前登录用户
      * @param channel   客户端 Netty 通道
@@ -110,6 +108,7 @@ public class ChatRoomServiceImpl implements ChatRoomService {
      */
     @Override
     public void sendRoomMessage(User loginUser, Channel channel, ChatInboundMessage request) {
+        // 校验登录态、通道房间绑定状态及消息内容合法性
         if (loginUser == null || channel == null || request == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "消息参数错误");
         }
@@ -121,11 +120,12 @@ public class ChatRoomServiceImpl implements ChatRoomService {
         if (StringUtils.isBlank(content) || content.length() > MAX_CONTENT_LENGTH) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "消息内容不能为空且不能超过2048个字符");
         }
-        // 1. 组装标准聊天广播消息体
+
+        // 组装标准聊天广播消息体并向房间内在线客户端实时广播
         ChatMessageResponse response = buildChatResponse(teamId, loginUser, request);
-        // 2. 实时广播给当前队伍中所有在线客户端
         broadcast(teamId, response);
-        // 3. 异步持久化及双通道容灾
+
+        // 优先写入 MySQL 持久化，失败时降级写入 Redis 容灾列表
         try {
             chatMessageService.saveMessage(response);
         } catch (Exception e) {
@@ -139,21 +139,25 @@ public class ChatRoomServiceImpl implements ChatRoomService {
     }
 
     /**
-     * 校验指定用户是否属于指定队伍
+     * 通过数据库校验队伍存在性及用户队伍关联关系
      *
-     * @param teamId 队伍 ID
-     * @param userId 用户 ID
-     * @throws BusinessException 参数错误、队伍不存在或未加入队伍时抛出业务异常
+     * @param teamId 队伍 id
+     * @param userId 用户 id
      */
     @Override
     public void ensureTeamMember(Long teamId, Long userId) {
+        // 校验参数合法性
         if (teamId == null || teamId <= 0 || userId == null || userId <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
+
+        // 查询并校验队伍是否存在
         Team team = teamService.getById(teamId);
         if (team == null) {
             throw new BusinessException(ErrorCode.NULL_ERROR, "队伍不存在");
         }
+
+        // 查询用户与队伍关联记录以确认成员资格
         QueryWrapper<UserTeam> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("teamId", teamId);
         queryWrapper.eq("userId", userId);
@@ -166,12 +170,13 @@ public class ChatRoomServiceImpl implements ChatRoomService {
     /**
      * 构建发送给客户端的聊天消息下行载荷
      *
-     * @param teamId    队伍 ID
+     * @param teamId    队伍 id
      * @param loginUser 发送者用户实体
      * @param request   上行请求对象
      * @return 组装完成的聊天响应对象
      */
     private ChatMessageResponse buildChatResponse(Long teamId, User loginUser, ChatInboundMessage request) {
+        // 组装下行广播消息字段
         ChatMessageResponse response = new ChatMessageResponse();
         response.setType("CHAT");
         response.setTeamId(teamId);
@@ -186,10 +191,11 @@ public class ChatRoomServiceImpl implements ChatRoomService {
     /**
      * 向指定队伍房间内所有活跃连接广播消息
      *
-     * @param teamId   队伍 ID
+     * @param teamId   队伍 id
      * @param response 待推送的聊天消息对象
      */
     private void broadcast(Long teamId, ChatMessageResponse response) {
+        // 序列化消息并遍历房间内活跃通道逐一推送
         String message = toJson(response);
         Map<Long, Channel> roomChannels = chatChannelManager.getRoomChannels(teamId);
         for (Channel roomChannel : roomChannels.values()) {
@@ -206,22 +212,25 @@ public class ChatRoomServiceImpl implements ChatRoomService {
      * @param response 响应数据对象
      */
     private void send(Channel channel, ChatMessageResponse response) {
+        // 校验通道活跃状态后写出 WebSocket 文本帧
         if (channel != null && channel.isActive()) {
             channel.writeAndFlush(new TextWebSocketFrame(toJson(response)));
         }
     }
 
     /**
-     * 将对象序列化为 JSON 字符串
+     * 将聊天消息响应对象序列化为 JSON 字符串
      *
      * @param response 响应对象
      * @return JSON 字符串
      */
     private String toJson(ChatMessageResponse response) {
+        // 调用 Jackson 执行 JSON 序列化
         try {
             return objectMapper.writeValueAsString(response);
         } catch (JsonProcessingException e) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "消息序列化失败");
         }
     }
+
 }

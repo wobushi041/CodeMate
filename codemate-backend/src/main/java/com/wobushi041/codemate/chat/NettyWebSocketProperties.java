@@ -6,9 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * Netty WebSocket 配置属性类
  *
- * 绑定配置文件中前缀为 codemate.websocket 的配置项，用于控制长连接服务的启停、监听端口与访问路径。
- *
- * @author 硫酸铜
+ * @author wobushi041
  */
 @Data
 @ConfigurationProperties(prefix = "codemate.websocket")
@@ -28,4 +26,5 @@ public class NettyWebSocketProperties {
      * WebSocket 握手与通信端点访问路径，默认为 /ws/chat
      */
     private String path = "/ws/chat";
+
 }

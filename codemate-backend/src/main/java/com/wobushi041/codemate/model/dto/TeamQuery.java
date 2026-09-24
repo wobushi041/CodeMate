@@ -4,20 +4,24 @@ import com.wobushi041.codemate.model.request.PageRequest;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-
 import java.util.List;
 
-
+/**
+ * 队伍查询条件数据对象
+ *
+ * @author wobushi041
+ */
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class TeamQuery extends PageRequest {
+
     /**
-     * 队伍ID
+     * 队伍 id
      */
     private Long id;
 
     /**
-     * 队伍列表
+     * 队伍 id 列表
      */
     private List<Long> idList;
 
@@ -42,12 +46,12 @@ public class TeamQuery extends PageRequest {
     private Integer maxNum;
 
     /**
-     * 创建队伍的用户ID
+     * 创建人用户 id
      */
     private Long userId;
 
     /**
-     * 0 - 公开，1 - 私有，2 - 加密
+     * 队伍状态 0 - 公开 1 - 私有 2 - 加密
      */
     private Integer status;
 

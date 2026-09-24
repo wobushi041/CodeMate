@@ -18,7 +18,6 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.concurrent.TimeUnit;
-
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -26,23 +25,45 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * 推荐缓存启动预热执行器单元测试
+ *
+ * @author wobushi041
+ */
 @ExtendWith(MockitoExtension.class)
 class CacheWarmupBootstrapRunnerTest {
 
+    /**
+     * 模拟缓存预热消息生产者依赖
+     */
     @Mock
     private CacheWarmupProducer cacheWarmupProducer;
 
+    /**
+     * 模拟推荐缓存服务依赖
+     */
     @Mock
     private RecommendCacheService recommendCacheService;
 
+    /**
+     * 模拟 Redisson 客户端依赖
+     */
     @Mock
     private RedissonClient redissonClient;
 
+    /**
+     * 模拟应用启动参数依赖
+     */
     @Mock
     private ApplicationArguments applicationArguments;
 
+    /**
+     * 测试启动时当缓存不存在则刷新缓存并调度下一轮预热任务
+     */
+    // 场景：测试应用启动时遇到缺失缓存能够主动触发刷新并投递下一轮延迟预热任务
     @Test
     void run_shouldRefreshMissingCacheAndScheduleNextRound() throws InterruptedException {
+        // 1. 准备测试数据与模拟依赖
         CacheWarmupBootstrapRunner runner = new CacheWarmupBootstrapRunner();
         RLock lock = mock(RLock.class);
         RecommendCacheWarmupMessage bootstrapMessage = new RecommendCacheWarmupMessage();
@@ -89,15 +110,22 @@ class CacheWarmupBootstrapRunnerTest {
         when(recommendCacheService.refreshRecommendCache(1L, 1L, 10L)).thenReturn(refreshedSnapshot);
         when(recommendCacheService.calculateNextDelayMillis(refreshedSnapshot)).thenReturn(29000L);
 
+        // 2. 调用待测方法
         runner.run(applicationArguments);
 
+        // 3. 断言结果
         verify(recommendCacheService).refreshRecommendCache(1L, 1L, 10L);
         verify(cacheWarmupProducer).scheduleWarmupTask(nextMessage, 29000L);
         verify(lock).unlock();
     }
 
+    /**
+     * 测试启动时当缓存有效则直接复用而不重新刷新
+     */
+    // 场景：测试应用启动时遇到有效缓存直接复用并继续投递下一轮延迟预热任务
     @Test
     void run_shouldReuseValidCacheWithoutRefreshing() throws InterruptedException {
+        // 1. 准备测试数据与模拟依赖
         CacheWarmupBootstrapRunner runner = new CacheWarmupBootstrapRunner();
         RLock lock = mock(RLock.class);
         RecommendCacheWarmupMessage bootstrapMessage = new RecommendCacheWarmupMessage();
@@ -138,15 +166,22 @@ class CacheWarmupBootstrapRunnerTest {
         when(recommendCacheService.getRecommendCacheSnapshot(2L, 1L, 10L)).thenReturn(validSnapshot);
         when(recommendCacheService.calculateNextDelayMillis(validSnapshot)).thenReturn(26000L);
 
+        // 2. 调用待测方法
         runner.run(applicationArguments);
 
+        // 3. 断言结果
         verify(recommendCacheService, never()).refreshRecommendCache(2L, 1L, 10L);
         verify(cacheWarmupProducer).scheduleWarmupTask(nextMessage, 26000L);
         verify(lock).unlock();
     }
 
+    /**
+     * 测试启动时当缓存进入提前刷新窗口则刷新缓存并调度下一轮任务
+     */
+    // 场景：测试应用启动时遇到处于提前刷新窗口内的缓存主动执行刷新并调度下一轮任务
     @Test
     void run_shouldRefreshWhenCacheEntersRefreshAheadWindow() throws InterruptedException {
+        // 1. 准备测试数据与模拟依赖
         CacheWarmupBootstrapRunner runner = new CacheWarmupBootstrapRunner();
         RLock lock = mock(RLock.class);
         RecommendCacheWarmupMessage bootstrapMessage = new RecommendCacheWarmupMessage();
@@ -193,10 +228,13 @@ class CacheWarmupBootstrapRunnerTest {
         when(recommendCacheService.refreshRecommendCache(3L, 1L, 10L)).thenReturn(refreshedSnapshot);
         when(recommendCacheService.calculateNextDelayMillis(refreshedSnapshot)).thenReturn(29000L);
 
+        // 2. 调用待测方法
         runner.run(applicationArguments);
 
+        // 3. 断言结果
         verify(recommendCacheService).refreshRecommendCache(3L, 1L, 10L);
         verify(cacheWarmupProducer).scheduleWarmupTask(nextMessage, 29000L);
         verify(lock).unlock();
     }
+
 }

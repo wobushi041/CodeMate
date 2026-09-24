@@ -1,27 +1,26 @@
 package com.wobushi041.codemate.model.domain;
 
-import com.baomidou.mybatisplus.annotation.*;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
+import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.Data;
 
 import java.io.Serializable;
 import java.util.Date;
-import lombok.Data;
 
 /**
- * 队伍
- * @TableName team
+ * 队伍实体
+ *
+ * @author wobushi041
  */
-@TableName(value ="team")
+@TableName(value = "team")
 @Data
 public class Team implements Serializable {
 
-
-    @TableField(exist = false)
-    private final static long serialVersionUID = 3673266922282662709L;
-
-
-
     /**
-     * id
+     * 队伍 id
      */
     @TableId(type = IdType.AUTO)
     private Long id;
@@ -32,7 +31,7 @@ public class Team implements Serializable {
     private String name;
 
     /**
-     * 描述
+     * 队伍描述
      */
     private String description;
 
@@ -47,17 +46,17 @@ public class Team implements Serializable {
     private Date expireTime;
 
     /**
-     * 队长id
+     * 队长用户 id
      */
     private Long userId;
 
     /**
-     * 0 - 公开，1 - 私有，2 - 加密
+     * 队伍状态 0 - 公开 1 - 私有 2 - 加密
      */
     private Integer status;
 
     /**
-     * 密码，vo不暴露
+     * 队伍密码（VO 不暴露）
      */
     private String password;
 
@@ -72,9 +71,14 @@ public class Team implements Serializable {
     private Date updateTime;
 
     /**
-     * 是否删除
+     * 是否删除 0 - 未删除 1 - 已删除
      */
     @TableLogic
     @TableField("isDelete")
     private Integer isDelete;
+
+    /// 序列化字段 ///
+    @TableField(exist = false)
+    private static final long serialVersionUID = 3673266922282662709L;
+
 }
