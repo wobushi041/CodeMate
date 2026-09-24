@@ -154,7 +154,7 @@
         <div class="edit-card-actions">
           <button class="edit-cancel-button" type="button" :disabled="saving" @click="closeEditor">取消</button>
           <button class="edit-save-button" type="button" :disabled="saving" @click="saveEdit">
-            <van-loading v-if="saving" color="#0f172a" size="18" />
+            <van-loading v-if="saving" color="#ffffff" size="18" />
             <span v-else>保存修改</span>
           </button>
         </div>
