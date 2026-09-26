@@ -4,6 +4,7 @@ import * as VueRouter from 'vue-router';
 import routes from "./config/route";
 import Vant from 'vant';
 import 'vant/lib/index.css';
+import '@fontsource-variable/noto-serif-sc';
 import '../global.css'
 import './styles/mallchat.css'
 import './styles/tailwind.css'
