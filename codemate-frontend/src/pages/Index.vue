@@ -13,7 +13,7 @@
       </div>
     </header>
 
-    <AppSearchBox v-model="searchKeyword" placeholder="输入技术栈、拼音、账号搜索伙伴..." />
+    <AppSearchBox trigger placeholder="按标签搜索技术伙伴..." @activate="goSearchPage" />
 
     <div class="filter-list" aria-label="伙伴分类">
       <button
@@ -36,53 +36,21 @@
       </button>
     </div>
 
-    <div v-if="loading && !userList.length" class="partner-list">
-      <div v-for="item in 4" :key="item" class="partner-card partner-card--loading">
-        <span class="loading-avatar" />
-        <div class="loading-lines"><span /><span /><span /></div>
-      </div>
-    </div>
+    <PartnerCardList v-if="loading && !userList.length">
+      <PartnerCard v-for="item in 4" :key="item" loading />
+    </PartnerCardList>
 
     <template v-else-if="filteredUsers.length">
-      <div class="partner-list">
-        <article
-          v-for="(user, index) in filteredUsers"
-          :key="user.id"
-          class="partner-card"
-        >
-          <div class="partner-avatar-wrap">
-            <img
-              class="partner-avatar"
-              :src="user.avatarUrl || fallbackAvatar"
-              :alt="user.username"
-              @error="onAvatarError"
-            />
-          </div>
-
-          <div class="partner-info">
-            <div>
-              <h3>{{ formatUserName(user) }}</h3>
-              <p>寻找项目队友</p>
-              <div class="partner-tags">
-                <span v-for="tag in user.tags" :key="tag">{{ tag }}</span>
-              </div>
-            </div>
-            <div class="contact-row">
-              <button
-                type="button"
-                :class="{ 'contact-button--contacted': isUserContacted(user.id) }"
-                :disabled="contactingUserId === user.id"
-                @click.stop="contactUser(user)"
-              >
-                <LoaderCircle v-if="contactingUserId === user.id" class="is-spinning" :size="16" />
-                <Send v-else-if="!isUserContacted(user.id)" :size="16" :stroke-width="1.9" />
-                <Check v-else :size="16" :stroke-width="2" />
-                <span>{{ contactingUserId === user.id ? '发起中...' : isUserContacted(user.id) ? '已联系' : '联系我' }}</span>
-              </button>
-            </div>
-          </div>
-        </article>
-      </div>
+      <PartnerCardList>
+        <PartnerCard
+            v-for="user in filteredUsers"
+            :key="user.id"
+            :user="user"
+            :contacted="isUserContacted(user.id)"
+            :contacting="contactingUserId === user.id"
+            @contact="contactUser"
+        />
+      </PartnerCardList>
 
       <!-- 滑动到底部自然停留在第 20 条卡片处的分页状态区 -->
       <div
@@ -113,8 +81,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { ArrowDownUp, Bell, Check, LoaderCircle, Send, UsersRound } from 'lucide-vue-next';
+import { ArrowDownUp, Bell, LoaderCircle, UsersRound } from 'lucide-vue-next';
 import AppSearchBox from '../components/AppSearchBox.vue';
+import PartnerCard from '../components/PartnerCard.vue';
+import PartnerCardList from '../components/PartnerCardList.vue';
 import { Toast } from 'vant';
 import myAxios from '../plugins/myAxios';
 import type { UserType } from '../models/user';
@@ -125,7 +95,6 @@ const router = useRouter();
 type Partner = Omit<UserType, 'tags'> & { tags: string[] };
 interface FilterTag { name: string; keywords: string[]; }
 
-const searchKeyword = ref('');
 const activeFilter = ref('全部');
 const sortDescending = ref(true);
 const userList = ref<Partner[]>([]);
@@ -145,8 +114,6 @@ const filterTags: FilterTag[] = [
   { name: 'AI/深度学习', keywords: ['ai', 'rag', 'pytorch', 'llm', 'deepseek', '机器学习', '深度学习'] },
   { name: '移动端', keywords: ['android', 'ios', 'flutter', 'swift', 'kotlin', 'react native'] },
 ];
-const fallbackAvatar = 'https://api.dicebear.com/8.x/initials/svg?seed=Code&backgroundColor=334155&fontFamily=Arial';
-
 const normalizeTags = (rawTags: unknown): string[] => {
   if (!rawTags) return [];
   if (Array.isArray(rawTags)) return rawTags.map(String);
@@ -159,13 +126,11 @@ const normalizeTags = (rawTags: unknown): string[] => {
 };
 
 const filteredUsers = computed(() => {
-  const keyword = searchKeyword.value.toLowerCase();
   const currentFilter = filterTags.find((tag) => tag.name === activeFilter.value);
   const result = userList.value.filter((user) => {
     const lowerTags = user.tags.map((tag) => tag.toLowerCase());
     const matchesFilter = !currentFilter?.keywords.length || currentFilter.keywords.some((filter) => lowerTags.some((tag) => tag.includes(filter)));
-    const searchable = [user.username, user.userAccount, user.planetCode, user.profile, ...user.tags].filter(Boolean).join(' ').toLowerCase();
-    return matchesFilter && (!keyword || searchable.includes(keyword));
+    return matchesFilter;
   });
   return sortDescending.value ? result : [...result].reverse();
 });
@@ -259,10 +224,9 @@ onBeforeUnmount(() => {
   contentEl?.removeEventListener('scroll', onContentScroll);
 });
 
-const formatUserName = (user: Partner) => user.planetCode ? `${user.username}(${user.planetCode})` : user.username;
-const onAvatarError = (event: Event) => { const image = event.target as HTMLImageElement; if (image.src !== fallbackAvatar) image.src = fallbackAvatar; };
 const toggleSort = () => { sortDescending.value = !sortDescending.value; };
 const showNotice = () => Toast('暂无新通知');
+const goSearchPage = () => router.push('/search');
 const contactingUserId = ref<number | null>(null);
 
 const contactUser = async (user: Partner) => {
@@ -329,34 +293,11 @@ const isUserContacted = (userId: number) => contactedUserIds.value.includes(Numb
 .partner-section-heading h2 span { color: #94a3b8; font-size: 14px; font-weight: 400; }
 .partner-section-heading button { display: flex; align-items: center; gap: 6px; padding: 0; border: 0; color: #f8fafc; background: transparent; font: inherit; font-size: 14px; font-weight: 500; white-space: nowrap; }
 .partner-section-heading button svg { color: #94a3b8; }
-.partner-list { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; width: 100%; min-width: 0; gap: 16px; }
-.partner-card { display: flex; width: 100%; max-width: 100%; min-width: 0; margin-right: auto; margin-left: auto; gap: 16px; min-height: 112px; box-sizing: border-box; overflow: hidden; padding: 16px; border: 1px solid transparent; border-radius: 16px; background: #1e293b; transition: transform .15s ease, box-shadow .15s ease; }
-.partner-avatar-wrap { position: relative; flex: 0 0 auto; width: 80px; height: 80px; }
-.partner-avatar { display: block; width: 80px; height: 80px; border-radius: 12px; object-fit: cover; background: #334155; }
-.partner-info { display: flex; width: 0; min-width: 0; flex: 1 1 0; flex-direction: column; justify-content: space-between; }
-.partner-info > div { min-width: 0; }
-.partner-info h3 { width: 100%; max-width: 100%; margin: 0; overflow: hidden; color: #f8fafc; font-size: 16px; font-weight: 600; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
-.partner-info p { margin: 4px 0 0; color: #cbd5e1; font-size: 12px; line-height: 16px; }
-.partner-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-.partner-tags span { padding: 4px 12px; border-radius: 999px; color: #cbd5e1; background: #334155; font-size: 12px; line-height: 16px; }
-.contact-row { display: flex; justify-content: flex-end; margin-top: 16px; }
-.contact-row button { display: inline-flex; max-width: 100%; box-sizing: border-box; align-items: center; gap: 8px; padding: 8px 20px; border: 0; border-radius: 999px; color: #030712; background: #fff; font: inherit; font-size: 14px; font-weight: 600; line-height: 20px; box-shadow: 0 4px 8px rgba(2,6,23,.18); transition: transform .15s ease, background .15s ease; }
-.contact-row button:active { transform: scale(.95); background: #f4f4f5; }
 .partner-empty { padding: 64px 20px; color: #94a3b8; text-align: center; }
 .partner-empty svg { display: block; margin: 0 auto 16px; opacity: .2; }
 .partner-empty p { margin: 0; font-size: 14px; }
-.partner-card--loading { min-height: 144px; }
-.loading-avatar { flex: 0 0 80px; width: 80px; height: 80px; border-radius: 12px; background: #334155; animation: loading-pulse 1.4s ease-in-out infinite; }
-.loading-lines { display: grid; align-content: start; gap: 10px; flex: 1; padding-top: 4px; }
-.loading-lines span { display: block; height: 10px; border-radius: 999px; background: #334155; animation: loading-pulse 1.4s ease-in-out infinite; }
-.loading-lines span:nth-child(2) { width: 72%; }
-.loading-lines span:nth-child(3) { width: 48%; }
-@keyframes pulse-green { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
-@keyframes loading-pulse { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .is-spinning { animation: spin 0.8s linear infinite; }
-.contact-row button.contact-button--contacted { color: #86efac; background: rgba(34, 197, 94, 0.14); border-color: rgba(74, 222, 128, 0.3); }
-.contact-row button:disabled { opacity: 0.65; cursor: not-allowed; }
 .scroll-load-status {
   display: flex;
   align-items: center;

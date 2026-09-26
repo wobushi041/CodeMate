@@ -26,7 +26,7 @@
 #app .basic-layout--without-tabbar { --app-tabbar-height: 0px; }
 #app .layout-content { color: var(--lab-ink); }
 #app .layout-header {
-  border-bottom: 1px solid var(--lab-line);
+  border-bottom: 0;
   color: var(--lab-ink);
   background: rgba(250, 249, 246, 0.88);
   box-shadow: none;
@@ -160,11 +160,10 @@
 #app .partner-section-heading h2 span { color: var(--lab-muted); font-family: inherit; font-size: 12px; }
 #app .partner-section-heading button { color: var(--lab-muted); font-size: 12px; }
 #app .partner-section-heading button svg { color: var(--lab-gold); }
-#app .partner-list { gap: 12px; }
 #app .partner-card {
   border: 1px solid var(--lab-line);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.92);
+  border-radius: 20px !important;
+  background: rgba(255, 255, 255, 0.92) !important;
   box-shadow: var(--lab-shadow);
 }
 #app .partner-avatar { border-radius: 14px; background: #ebe8e1; }
@@ -289,20 +288,7 @@
 #app .team-search { margin-right: 16px; margin-left: 16px; }
 #app .team-create-button:active { background: #49443f; }
 
-#app .mall-user-card .van-card {
-  padding: 14px 16px;
-  border: 1px solid var(--lab-line);
-  border-radius: 20px !important;
-  background: #fff !important;
-  box-shadow: var(--lab-shadow);
-}
-#app .mall-user-card .van-card__thumb { border-color: var(--lab-line); background: #eeeae2; }
-#app .mall-user-card .van-card__title { color: var(--lab-ink); font-family: var(--lab-serif); font-size: 16px; }
-#app .mall-user-card .van-card__desc { color: var(--lab-muted); }
-#app .mall-user-card .van-tag--primary { border-color: #e9dfc7; color: #8c6c24; background: var(--lab-gold-soft); }
-#app .mall-user-card .van-button--primary { border-color: var(--lab-ink); color: #fff; background: var(--lab-ink); }
-#app .mall-user-card .contact-button--contacted { border-color: #b9d7c0; color: #477154; background: #eaf4eb; }
-#app .search-result-page { padding: 16px 8px 30px; }
+#app .search-result-page { padding: 16px 18px 30px; }
 
 /* 个人资料 */
 #app .profile-content {
@@ -465,24 +451,24 @@
 #app .send-button:not(:disabled):active { background: #49443f; }
 
 /* 搜索与结果筛选 */
-#app .search-header { border-bottom-color: var(--lab-line); background: rgba(250, 249, 246, 0.92); }
-#app .search-page .van-search__content { border: 1px solid var(--lab-line); border-radius: 14px; background: #fff; }
+#app .search-header { border-bottom-color: transparent; background: transparent; }
+#app .search-page .van-search__content { border-color: rgba(255, 255, 255, 0.9); border-radius: 17px; background: rgba(255, 255, 255, 0.76); }
 #app .search-page .van-search__field,
 #app .search-page .van-field__control { color: var(--lab-ink); }
 #app .search-page .van-search__action { color: var(--lab-ink); }
-#app .search-panel { border-color: var(--lab-line); border-radius: 18px; background: #fff; box-shadow: var(--lab-shadow); }
+#app .search-panel { border-color: rgba(255, 255, 255, 0.88); border-radius: 22px; background: rgba(255, 255, 255, 0.82); box-shadow: var(--lab-shadow); }
 #app .search-panel-title { color: var(--lab-ink); font-family: var(--lab-serif); font-size: 17px; }
 #app .clear-selected-btn { color: #977322; }
 #app .selected-tags .van-tag { border-color: #e9dfc7; color: #8c6c24; background: var(--lab-gold-soft); }
 #app .search-page .van-tree-select__nav { border-right-color: var(--lab-line); background: #f7f5f0; }
-#app .search-page .van-tree-select__content { background: #fff; }
+#app .search-page .van-tree-select__content { background: rgba(255, 255, 255, 0.8); }
 #app .search-page .van-sidebar-item { color: var(--lab-muted); }
 #app .search-page .van-sidebar-item--select { color: var(--lab-ink); background: #fff; }
 #app .search-page .van-sidebar-item--select::before { background: var(--lab-gold); }
 #app .search-page .van-tree-select__item { color: var(--lab-ink); }
-#app .search-page .van-tree-select__item--active { color: #997214; }
-#app .search-footer { border-top-color: var(--lab-line); background: rgba(250, 249, 246, 0.94); }
+#app .search-page .van-tree-select__item--active { color: #997214; background: var(--lab-gold-soft); }
 #app .mall-search-btn { border-color: var(--lab-ink); color: #fff; background: var(--lab-ink); }
+#app .team-page-dock:has(.mall-search-btn) { border-top: 0; }
 
 /* 创建、更新队伍与日期选择 */
 #app .form-card,
@@ -689,9 +675,6 @@
 /* 细节与小屏布局 */
 #app .team-page .team-search { margin: 0; }
 #app .team-page-content .team-search { width: calc(100% - 32px); margin: 0 16px 14px; }
-#app .mall-user-card .van-card__footer { position: static; margin-top: 10px; text-align: right; }
-#app .mall-user-card .van-card__content { min-height: 100px; }
-#app .mall-user-card .van-card__header { min-width: 0; }
 #app .profile-menu__item:focus-visible,
 #app .team-action:focus-visible,
 #app .prototype-tabbar__item:focus-visible,

@@ -1,69 +1,77 @@
 <template>
-  <div class="mall-page search-page">
-    <div class="search-header">
-      <van-search
-          v-model="searchText"
-          class="tag-search"
-          show-action
-          shape="round"
-          placeholder="请输入要搜索的标签"
-          @search="onSearch"
-          @cancel="onCancel"
-      />
-    </div>
-    <div class="search-body">
-      <section class="search-panel selected-panel">
-        <div class="search-panel-title">
-          <span>已选标签</span>
-          <button v-if="activeIds.length > 0" class="clear-selected-btn" type="button" @click="doClearSelected">
-            清空
-          </button>
-        </div>
-        <div v-if="activeIds.length > 0" class="selected-tags">
-          <van-tag
-              v-for="tag in activeIds"
-              :key="tag"
-              closeable
-              plain
-              size="medium"
-              type="primary"
-              @close="doClose(tag)"
-          >
-            {{ tag }}
-          </van-tag>
-        </div>
-        <div v-else class="search-tip">请选择标签</div>
-      </section>
-      <section class="search-panel tag-panel">
-        <div class="search-panel-title">
-          <span>选择标签</span>
-          <span class="tag-count">{{ tagCountText }}</span>
-        </div>
-        <van-tree-select
-            v-if="hasMatchedTags"
-            v-model:active-id="activeIds"
-            v-model:main-active-index="activeIndex"
-            class="tag-tree"
-            selected-icon="success"
-            :height="treeHeight"
-            :items="tagList"
+  <SubPageLayout title="搜索">
+    <div class="search-page">
+      <div class="search-header">
+        <van-search
+            v-model="searchText"
+            class="tag-search"
+            show-action
+            shape="round"
+            placeholder="请输入要搜索的标签"
+            @search="onSearch"
+            @cancel="onCancel"
         />
-        <van-empty v-else class="tag-empty" description="没有匹配标签"/>
-      </section>
+      </div>
+      <div class="search-body">
+        <section class="search-panel selected-panel">
+          <div class="search-panel-title">
+            <div class="search-panel-heading">
+              <span>已选标签</span>
+              <small>{{ activeIds.length > 0 ? `已选择 ${activeIds.length} 项` : '组合标签，缩小匹配范围' }}</small>
+            </div>
+            <button v-if="activeIds.length > 0" class="clear-selected-btn" type="button" @click="doClearSelected">
+              清空
+            </button>
+          </div>
+          <div v-if="activeIds.length > 0" class="selected-tags">
+            <van-tag
+                v-for="tag in activeIds"
+                :key="tag"
+                closeable
+                plain
+                size="medium"
+                type="primary"
+                @close="doClose(tag)"
+            >
+              {{ tag }}
+            </van-tag>
+          </div>
+          <div v-else class="search-tip">还没有选择标签，可直接浏览全部伙伴</div>
+        </section>
+        <section class="search-panel tag-panel">
+          <div class="search-panel-title">
+            <span>选择标签</span>
+            <span class="tag-count">{{ tagCountText }}</span>
+          </div>
+          <van-tree-select
+              v-if="hasMatchedTags"
+              v-model:active-id="activeIds"
+              v-model:main-active-index="activeIndex"
+              class="tag-tree"
+              selected-icon="success"
+              :height="treeHeight"
+              :items="tagList"
+          />
+          <van-empty v-else class="tag-empty" description="没有匹配标签"/>
+        </section>
+      </div>
     </div>
-    <div class="search-footer">
+
+    <template #bottom>
       <van-button class="mall-search-btn" block round type="primary" @click="doSearchResult">
-        搜索
+        {{ activeIds.length > 0 ? `查看匹配伙伴 · ${activeIds.length}` : '查看全部伙伴' }}
       </van-button>
-    </div>
-  </div>
+    </template>
+  </SubPageLayout>
 </template>
 
 <script setup lang="ts">
 import {computed, ref} from 'vue';
-import {useRouter} from "vue-router";
+import {useRoute, useRouter} from "vue-router";
+import SubPageLayout from '../components/SubPageLayout.vue';
 
 const router = useRouter()
+const route = useRoute()
 
 const searchText = ref('');
 
@@ -229,9 +237,16 @@ const onCancel = () => {
   activeIndex.value = 0;
 };
 
-// 已选中的标签
-const activeIds = ref<string[]>([]);
-const activeIndex = ref(0);
+const availableTagIds = new Set(originTagList.flatMap(group => group.children.map(tag => tag.id)));
+const queryTags = Array.isArray(route.query.tags) ? route.query.tags : [route.query.tags];
+const restoredTagIds = [...new Set(queryTags
+    .filter((tag): tag is string => typeof tag === 'string' && availableTagIds.has(tag)))];
+
+// 已选中的标签：从 URL 恢复，确保结果页返回后仍保留筛选条件
+const activeIds = ref<string[]>(restoredTagIds);
+const activeIndex = ref(Math.max(0, originTagList.findIndex(group => {
+  return group.children.some(tag => restoredTagIds.includes(tag.id));
+})));
 
 // 移除标签
 const doClose = (tag) => {
@@ -247,12 +262,17 @@ const doClearSelected = () => {
 /**
  * 执行搜索
  */
-const doSearchResult = () => {
-  router.push({
+const doSearchResult = async () => {
+  const tags = [...activeIds.value];
+  const query = tags.length > 0 ? {tags} : {};
+
+  await router.replace({
+    path: '/search',
+    query,
+  });
+  await router.push({
     path: '/user/list',
-    query: {
-      tags: activeIds.value
-    }
+    query,
   })
 }
 
@@ -260,25 +280,24 @@ const doSearchResult = () => {
 
 <style scoped>
 .search-page {
+  display: flex;
   box-sizing: border-box;
   height: 100%;
   min-height: 0;
-  padding: 0;
-  display: flex;
   flex-direction: column;
   overflow: hidden;
+  color: var(--lab-ink);
+  background: var(--lab-paper);
 }
 
 .search-header {
   flex: 0 0 auto;
-  padding: 10px 12px 12px;
-  background: rgba(39, 42, 55, 0.72);
-  border-bottom: 1px solid var(--border-weak);
+  padding: 14px 16px 8px;
+  border: 0;
+  background: transparent;
 }
 
-.tag-search {
-  box-sizing: border-box;
-}
+.tag-search { box-sizing: border-box; }
 
 .search-page :deep(.van-search) {
   padding: 0;
@@ -287,147 +306,265 @@ const doSearchResult = () => {
 
 .search-page :deep(.van-search__content) {
   box-sizing: border-box;
-  height: 40px;
-  padding-left: 12px;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
+  height: 48px;
+  padding-left: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 10px 28px rgba(39, 34, 27, 0.08);
+  backdrop-filter: blur(18px) saturate(1.12);
+  -webkit-backdrop-filter: blur(18px) saturate(1.12);
 }
 
-.search-tip {
-  color: var(--text-light);
-  font-size: 13px;
-  line-height: 24px;
+.search-page :deep(.van-search__field) {
+  height: 100%;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.search-page :deep(.van-search__field .van-field__body) {
+  height: 100%;
+  align-items: center;
+}
+
+.search-page :deep(.van-search__field .van-field__left-icon) {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  line-height: 1;
+}
+
+.search-page :deep(.van-search__field .van-field__left-icon .van-icon) {
+  display: block;
+  line-height: 1;
+}
+
+.search-page :deep(.van-search__field .van-field__control) {
+  height: 100%;
+  padding: 0;
+  line-height: 20px;
+}
+
+.search-page :deep(.van-search__content:focus-within) {
+  border-color: rgba(189, 146, 38, 0.55);
+  box-shadow: 0 0 0 2px rgba(189, 146, 38, 0.1), 0 10px 28px rgba(39, 34, 27, 0.08);
+}
+
+.search-page :deep(.van-search__action) {
+  margin-left: 10px;
+  padding: 0 2px;
+  color: var(--lab-ink);
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .search-body {
+  display: flex;
   box-sizing: border-box;
-  flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 12px;
-  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 16px 12px;
+  overflow: hidden;
 }
 
 .search-panel {
   box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--lab-shadow);
+  backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
 }
 
 .selected-panel {
-  padding: 14px;
+  flex: 0 0 auto;
+  min-height: 96px;
+  padding: 17px 18px;
 }
 
 .tag-panel {
-  margin-top: 12px;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
   overflow: hidden;
 }
 
 .search-panel-title {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
-  color: var(--text-light-1);
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 22px;
+  gap: 16px;
+  color: var(--lab-ink);
+}
+
+.tag-panel > .search-panel-title { padding: 17px 18px 13px; }
+
+.search-panel-heading {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.search-panel-heading > span,
+.tag-panel .search-panel-title > span:first-child {
+  font-family: var(--lab-serif);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+.search-panel-heading small {
+  overflow: hidden;
+  color: var(--lab-muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-tip {
+  margin-top: 8px;
+  color: var(--lab-muted);
+  font-size: 12px;
+  line-height: 20px;
 }
 
 .clear-selected-btn {
+  flex: 0 0 auto;
   box-sizing: border-box;
-  padding: 0;
-  color: var(--color-primary);
-  background: transparent;
-  border: 0;
-  font-size: 13px;
-  line-height: 22px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid #e9dfc7;
+  border-radius: 999px;
+  color: #8c6c24;
+  background: var(--lab-gold-soft);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
 }
 
+.clear-selected-btn:active { transform: scale(0.96); }
+
 .tag-count {
-  color: var(--text-light);
-  font-size: 12px;
-  font-weight: 400;
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  border-radius: 999px;
+  color: #8c6c24;
+  background: var(--lab-gold-soft);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .selected-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 7px;
   margin-top: 12px;
 }
 
 .selected-tags :deep(.van-tag) {
   box-sizing: border-box;
   max-width: 100%;
-  padding: 4px 8px;
-  background: rgba(29, 144, 245, 0.12);
-  border-color: rgba(29, 144, 245, 0.42);
-  border-radius: 8px;
-}
-
-.search-page :deep(.van-search__action) {
-  color: var(--color-primary);
+  min-height: 30px;
+  padding: 5px 10px;
+  border-color: #e9dfc7;
+  border-radius: 999px;
+  color: #8c6c24;
+  background: var(--lab-gold-soft);
 }
 
 .tag-tree {
-  margin-top: 12px;
+  min-height: 0;
+  flex: 1;
+  height: 100% !important;
+  margin-top: 0;
+  border-top: 1px solid var(--lab-line);
 }
 
-.search-page :deep(.van-tree-select) {
-  background: transparent;
-}
+.search-page :deep(.van-tree-select) { background: transparent; }
 
 .search-page :deep(.van-tree-select__nav) {
-  width: 34%;
-  background: rgba(0, 0, 0, 0.08);
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  width: 39%;
+  padding: 8px;
+  border-right: 1px solid var(--lab-line);
+  background: #f7f5f0;
 }
 
 .search-page :deep(.van-tree-select__content) {
-  background: rgba(255, 255, 255, 0.025);
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .search-page :deep(.van-sidebar-item) {
-  color: var(--text-light);
+  margin-bottom: 3px;
+  padding: 13px 12px;
+  border-radius: 12px;
+  color: var(--lab-muted);
   background: transparent;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .search-page :deep(.van-sidebar-item--select) {
-  color: var(--text-main);
-  background: rgba(255, 255, 255, 0.055);
+  color: var(--lab-ink);
+  background: #fff;
+  font-weight: 700;
+  box-shadow: 0 5px 16px rgba(39, 34, 27, 0.06);
 }
 
 .search-page :deep(.van-sidebar-item--select::before) {
-  background-color: var(--color-primary);
+  left: -8px;
+  width: 3px;
+  height: 22px;
+  border-radius: 0 3px 3px 0;
+  background: var(--lab-gold);
 }
 
 .search-page :deep(.van-tree-select__item) {
-  color: var(--text-light-1);
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  margin-bottom: 3px;
+  padding: 10px 34px 10px 14px;
+  border-radius: 12px;
+  color: var(--lab-ink);
+  font-size: 13px;
   font-weight: 500;
+  line-height: 20px;
 }
 
-.search-page :deep(.van-tree-select__item--active) {
-  font-weight: 600;
-  color: var(--color-primary);
-}
+.search-page :deep(.van-tree-select__item:active) { background: #f7f5f0; }
+.search-page :deep(.van-tree-select__item--active) { color: #8c6c24; background: var(--lab-gold-soft); font-weight: 700; }
+.search-page :deep(.van-tree-select__selected) { right: 13px; color: var(--lab-gold); }
 
 .tag-empty {
-  height: 260px;
-}
-
-.search-footer {
-  box-sizing: border-box;
-  flex: 0 0 auto;
-  padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
-  background: rgba(30, 33, 44, 0.92);
-  border-top: 1px solid var(--border-weak);
+  min-height: 0;
+  flex: 1;
 }
 
 .mall-search-btn {
   box-sizing: border-box;
-  height: 44px;
+  height: 52px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--lab-ink);
+  box-shadow: 0 12px 26px rgba(39, 34, 27, 0.16);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.mall-search-btn:active { transform: scale(0.985); background: #49443f; }
+
+@media (max-height: 700px) {
+  .search-header { padding-top: 10px; }
+  .search-body { gap: 10px; padding-top: 4px; }
+  .selected-panel { min-height: 82px; padding: 13px 16px; }
 }
 </style>

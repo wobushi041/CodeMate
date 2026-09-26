@@ -1,8 +1,10 @@
 <template>
-  <div class="mall-page search-result-page">
-    <user-card-list :user-list="userList" :loading="loading" />
-    <van-empty v-if="!userList || userList.length < 1" description="搜索结果为空" />
-  </div>
+  <SubPageLayout title="用户列表">
+    <div class="search-result-page">
+      <user-card-list :user-list="userList" :loading="loading" />
+      <van-empty v-if="!loading && (!userList || userList.length < 1)" description="搜索结果为空" />
+    </div>
+  </SubPageLayout>
 </template>
 
 <script setup lang="ts">
@@ -12,6 +14,7 @@ import myAxios from "../plugins/myAxios";
 import {Toast} from "vant";
 import qs from 'qs';
 import UserCardList from "../components/UserCardList.vue";
+import SubPageLayout from '../components/SubPageLayout.vue';
 
 const route = useRoute();
 const {tags} = route.query;
