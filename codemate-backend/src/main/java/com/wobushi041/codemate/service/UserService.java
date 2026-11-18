@@ -35,6 +35,14 @@ public interface UserService extends IService<User> {
     User userLogin(String userAccount, String userPassword, HttpServletRequest request);
 
     /**
+     * 为 uni-app 登录用户创建访问令牌
+     *
+     * @param loginUser 脱敏后的登录用户
+     * @return 访问令牌
+     */
+    String createUniAppToken(User loginUser);
+
+    /**
      * 更新用户信息
      *
      * @param user      待更新的用户信息
@@ -66,6 +74,15 @@ public interface UserService extends IService<User> {
      * @return 当前登录用户实体
      */
     User getLoginUserFromRequest(HttpServletRequest request);
+
+    /**
+     * 从指定授权信息或 HTTP Session 中获取登录用户
+     *
+     * @param request       HTTP 请求对象
+     * @param authorization Authorization 请求头内容，支持 Bearer Token
+     * @return 当前登录用户实体
+     */
+    User getLoginUserFromRequest(HttpServletRequest request, String authorization);
 
     /**
      * 根据标签列表搜索匹配的用户列表

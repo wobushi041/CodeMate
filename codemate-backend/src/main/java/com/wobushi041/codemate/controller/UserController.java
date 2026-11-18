@@ -9,6 +9,7 @@ import com.wobushi041.codemate.exception.BusinessException;
 import com.wobushi041.codemate.model.domain.User;
 import com.wobushi041.codemate.model.request.UserLoginRequest;
 import com.wobushi041.codemate.model.request.UserRegisterRequest;
+import com.wobushi041.codemate.model.vo.UniAppLoginVO;
 import com.wobushi041.codemate.service.RecommendCacheService;
 import com.wobushi041.codemate.service.UserService;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +28,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Min;
 import java.util.List;
 import java.util.stream.Collectors;
-import static com.wobushi041.codemate.contant.UserConstant.USER_LOGIN_STATE;
 
 /**
  * 用户控制层
@@ -87,6 +87,28 @@ public class UserController {
     }
 
     /**
+     * uni-app 用户登录接口，返回 Bearer Token 与脱敏用户信息
+     *
+     * @param userLoginRequest 用户登录请求参数
+     * @param request          HTTP 请求对象
+     * @return uni-app 登录凭证与用户信息
+     */
+    @PostMapping("/uniapp/login")
+    public BaseResponse<UniAppLoginVO> uniAppLogin(@RequestBody @Validated UserLoginRequest userLoginRequest,
+                                                   HttpServletRequest request) {
+        User user = userService.userLogin(
+                userLoginRequest.getUserAccount(),
+                userLoginRequest.getUserPassword(),
+                request
+        );
+        if (user == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号或密码错误");
+        }
+        String token = userService.createUniAppToken(user);
+        return ResultUtils.success(new UniAppLoginVO(token, "Bearer", user));
+    }
+
+    /**
      * 用户注销接口
      *
      * @param request HTTP 请求对象
@@ -112,12 +134,8 @@ public class UserController {
      */
     @GetMapping("/current")
     public BaseResponse<User> getCurrentUser(HttpServletRequest request) {
-        // 获取并校验登录态
-        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
-        User currentUser = (User) userObj;
-        if (currentUser == null) {
-            throw new BusinessException(ErrorCode.NOT_LOGIN);
-        }
+        // 优先通过 Bearer Token 获取登录态，无 Token 时回退 HTTP Session
+        User currentUser = userService.getLoginUserFromRequest(request);
 
         // 查询最新用户信息并脱敏
         long userId = currentUser.getId();

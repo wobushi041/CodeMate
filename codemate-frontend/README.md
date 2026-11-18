@@ -34,6 +34,14 @@ src/
 └─ assets/       # 图片与字体
 ```
 
+## 字体与品牌
+
+- 正文和通用控件使用本地 [`SourceHanSansCN-VF.ttf.woff2`](src/assets/fonts/SourceHanSansCN-VF.ttf.woff2)，对应 CSS 变量为 `--lab-font`。
+- 页面标题和重点标题使用 `@fontsource-variable/noto-serif-sc` 提供的 `Noto Serif SC Variable`，对应 CSS 变量为 `--lab-serif`。
+- 字体包在 [`src/main.ts`](src/main.ts) 中全局引入，字体栈定义在 [`src/styles/mallchat.css`](src/styles/mallchat.css) 中。
+- CodeMate Logo 使用独立图片资源，不继承 `--lab-font` 或 `--lab-serif`。
+- 思源黑体的许可证见 [`SourceHanSans-LICENSE.txt`](src/assets/fonts/SourceHanSans-LICENSE.txt)；`Noto Serif SC Variable` 遵循 SIL Open Font License 1.1。
+
 ## 本地开发
 
 准备 Node.js 和 npm，并先按[根 README](../README.md#本地启动)启动后端。在 `codemate-frontend` 目录运行：

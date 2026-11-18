@@ -30,6 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -51,6 +52,21 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
      * 密码加密混淆盐值
      */
     private static final String SALT = "041";
+
+    /**
+     * uni-app 登录 Token 的 Redis Key 前缀
+     */
+    private static final String UNI_APP_TOKEN_PREFIX = "codemate:uniapp:login:token:";
+
+    /**
+     * uni-app 登录 Token 有效期（天）
+     */
+    private static final long UNI_APP_TOKEN_EXPIRE_DAYS = 7L;
+
+    /**
+     * Authorization 请求头中的 Bearer 前缀
+     */
+    private static final String BEARER_PREFIX = "Bearer ";
 
     /**
      * 注入用户持久层依赖
@@ -147,6 +163,23 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     }
 
     /**
+     * 创建随机访问令牌，并将脱敏用户登录态写入 Redis
+     *
+     * @param loginUser 脱敏后的登录用户
+     * @return 访问令牌
+     */
+    @Override
+    public String createUniAppToken(User loginUser) {
+        if (loginUser == null) {
+            throw new BusinessException(ErrorCode.NOT_LOGIN, "用户未登录");
+        }
+        String token = UUID.randomUUID().toString().replace("-", "");
+        RBucket<User> tokenBucket = redissonClient.getBucket(UNI_APP_TOKEN_PREFIX + token);
+        tokenBucket.set(loginUser, UNI_APP_TOKEN_EXPIRE_DAYS, TimeUnit.DAYS);
+        return token;
+    }
+
+    /**
      * 剥离用户密码等敏感字段并构造全新的脱敏用户对象
      *
      * @param originUser 原始用户实体
@@ -175,14 +208,40 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     }
 
     /**
-     * 从 HTTP Session 中读取当前登录用户属性并校验登录状态
+     * 获取当前登录用户，优先识别 Bearer Token，无 Token 时回退 HTTP Session
      *
      * @param request HTTP 请求对象
      * @return 当前登录用户实体
      */
     @Override
     public User getLoginUserFromRequest(HttpServletRequest request) {
-        // 从 Session 获取登录态对象并校验非空
+        return getLoginUserFromRequest(request, request.getHeader("Authorization"));
+    }
+
+    /**
+     * 从指定授权信息或 HTTP Session 中获取登录用户
+     *
+     * @param request       HTTP 请求对象
+     * @param authorization Authorization 请求头内容
+     * @return 当前登录用户实体
+     */
+    @Override
+    public User getLoginUserFromRequest(HttpServletRequest request, String authorization) {
+        // 请求携带 Bearer Token 时必须通过 Token 鉴权，避免无效 Token 回退到其他会话
+        if (StringUtils.isNotBlank(authorization) && authorization.startsWith(BEARER_PREFIX)) {
+            String token = authorization.substring(BEARER_PREFIX.length()).trim();
+            if (token.isEmpty()) {
+                throw new BusinessException(ErrorCode.NOT_LOGIN, "登录凭证为空");
+            }
+            RBucket<User> tokenBucket = redissonClient.getBucket(UNI_APP_TOKEN_PREFIX + token);
+            User loginUser = tokenBucket.get();
+            if (loginUser == null) {
+                throw new BusinessException(ErrorCode.NOT_LOGIN, "登录凭证无效或已过期");
+            }
+            return loginUser;
+        }
+
+        // 未携带 Bearer Token 时沿用原 Session 登录态，兼容现有 Web 前端
         Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
         if (userObj == null) {
             throw new BusinessException(ErrorCode.NULL_ERROR, "用户未登录");

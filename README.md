@@ -39,7 +39,7 @@ Vue 3 + TypeScript + Vant
   └─ WebSocket ──> Netty (:8091, /ws/chat)
 ```
 
-前端使用 Vite、Vue Router 和 Tailwind CSS；后端使用 Spring Boot、MyBatis-Plus、Redis、RabbitMQ、Elasticsearch 与 Netty。AI 模块通过 LangChain4j 接入聊天模型和本地向量模型。上述服务的连接信息以实际配置为准。
+前端使用 Vite、Vue Router 和 Tailwind CSS；界面正文采用本地思源黑体可变字体，页面标题采用 `Noto Serif SC Variable`，品牌 Logo 保持独立图片资源，不受全局字体变量影响。后端使用 Spring Boot、MyBatis-Plus、Redis、RabbitMQ、Elasticsearch 与 Netty。AI 模块通过 LangChain4j 接入聊天模型和本地向量模型。上述服务的连接信息以实际配置为准。
 
 ## 本地启动
 
@@ -98,4 +98,4 @@ CodeMate/
 
 ## 许可证
 
-项目采用 [MIT License](LICENSE)。前端使用的思源黑体遵循其[字体许可证](codemate-frontend/src/assets/fonts/SourceHanSans-LICENSE.txt)。
+项目采用 [MIT License](LICENSE)。前端正文使用的思源黑体遵循其[字体许可证](codemate-frontend/src/assets/fonts/SourceHanSans-LICENSE.txt)；标题字体 `Noto Serif SC Variable` 由 `@fontsource-variable/noto-serif-sc` 提供，并遵循 SIL Open Font License 1.1。
