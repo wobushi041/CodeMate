@@ -1,0 +1,79 @@
+{
+  "easycom": {
+    "autoscan": true,
+    "custom": {
+      "^wd-(.*)": "wot-design-uni/components/wd-$1/wd-$1.vue"
+    }
+  },
+  "pages": [
+    {
+      "path": "pages/auth/login",
+      "style": {
+        "navigationBarTitleText": "登录",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/auth/register",
+      "style": {
+        "navigationBarTitleText": "注册",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/index/index",
+      "style": { "navigationBarTitleText": "CodeMate" }
+    },
+    {
+      "path": "pages/match/index",
+      "style": { "navigationBarTitleText": "伙伴匹配" }
+    },
+    {
+      "path": "pages/team/index",
+      "style": { "navigationBarTitleText": "找队伍" }
+    },
+    {
+      "path": "pages/ai/index",
+      "style": { "navigationBarTitleText": "AI 编程助手" }
+    },
+    {
+      "path": "pages/user/index",
+      "style": { "navigationBarTitleText": "我的" }
+    }
+  ],
+  "subPackages": [
+    {
+      "root": "subpages",
+      "pages": [
+        { "path": "chat/private", "style": { "navigationBarTitleText": "私聊" } },
+        { "path": "chat/team", "style": { "navigationBarTitleText": "队伍聊天室" } },
+        { "path": "team/add", "style": { "navigationBarTitleText": "创建队伍" } },
+        { "path": "team/update", "style": { "navigationBarTitleText": "更新队伍" } },
+        { "path": "search/index", "style": { "navigationBarTitleText": "搜索伙伴" } },
+        { "path": "search/result", "style": { "navigationBarTitleText": "用户列表" } },
+        { "path": "user/edit", "style": { "navigationBarTitleText": "编辑个人信息" } },
+        { "path": "user/created", "style": { "navigationBarTitleText": "我创建的队伍" } },
+        { "path": "user/joined", "style": { "navigationBarTitleText": "我加入的队伍" } }
+      ]
+    }
+  ],
+  "tabBar": {
+    "color": "#94a3b8",
+    "selectedColor": "#f8fafc",
+    "backgroundColor": "#1e293b",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/index/index", "text": "主页" },
+      { "pagePath": "pages/match/index", "text": "匹配" },
+      { "pagePath": "pages/team/index", "text": "队伍" },
+      { "pagePath": "pages/ai/index", "text": "AI助手" },
+      { "pagePath": "pages/user/index", "text": "我的" }
+    ]
+  },
+  "globalStyle": {
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "CodeMate",
+    "navigationBarBackgroundColor": "#0f172a",
+    "backgroundColor": "#0f172a"
+  }
+}

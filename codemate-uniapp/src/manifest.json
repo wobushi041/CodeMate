@@ -1,0 +1,37 @@
+{
+  "name": "CodeMate",
+  "appid": "__UNI__CODEMATE",
+  "description": "找到合适的编程伙伴，组建队伍，即时交流。",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "app-plus": {
+    "usingComponents": true,
+    "nvueStyleCompiler": "uni-app",
+    "compilerVersion": 3,
+    "modules": {},
+    "distribute": {
+      "android": {
+        "permissions": []
+      },
+      "ios": {},
+      "sdkConfigs": {}
+    }
+  },
+  "h5": {
+    "router": {
+      "mode": "hash"
+    },
+    "title": "CodeMate"
+  },
+  "mp-weixin": {
+    "usingComponents": true,
+    "appid": "",
+    "setting": {
+      "urlCheck": false,
+      "es6": true,
+      "minified": true
+    }
+  },
+  "vueVersion": "3"
+}
