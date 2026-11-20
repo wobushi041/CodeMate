@@ -41,6 +41,11 @@ coverage
 .next
 .vite
 
+# ==================== 移动端 (codemate-uniapp) ====================
+unpackage/
+.hbuilderx/
+.hbuilder/
+
 # ==================== 后端 (codemate-backend) ====================
 # Maven 构建输出
 target/
