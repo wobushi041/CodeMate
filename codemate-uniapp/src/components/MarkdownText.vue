@@ -77,7 +77,7 @@ const blocks = computed<MarkdownBlock[]>(() => {
 }
 
 .markdown-text__heading {
-  color: #f8fafc;
+  color: #242321;
   font-size: 32rpx;
   font-weight: 700;
 }
@@ -99,7 +99,7 @@ const blocks = computed<MarkdownBlock[]>(() => {
 .markdown-text__code {
   padding: 20rpx;
   overflow-x: auto;
-  border: 1rpx solid #334155;
+  border: 1rpx solid #eae7e0;
   border-radius: 16rpx;
   color: #e2e8f0;
   background: #020617;
@@ -108,4 +108,6 @@ const blocks = computed<MarkdownBlock[]>(() => {
   line-height: 1.6;
   white-space: pre-wrap;
 }
+.markdown-text__bullet { color: #bd9226; }
+.markdown-text__code { border-color: #eae7e0; color: #242321; background: #f7f5f0; }
 </style>

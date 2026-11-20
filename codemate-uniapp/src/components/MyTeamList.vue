@@ -54,13 +54,16 @@ async function loadTeams() {
   margin: 0 24rpx 28rpx;
   padding: 0 28rpx;
   border-radius: 24rpx;
-  color: #f8fafc;
-  background: #1e293b;
+  color: #242321;
+  background: #ffffff;
 }
 
 .my-team__state {
   padding: 80rpx 24rpx;
-  color: #64748b;
+  color: #85817a;
   text-align: center;
 }
+.my-team { color: #242321; background: #faf9f6; }
+.my-team__search { height: 48px; margin: 0 16px 14px; padding: 0 16px; border: 1px solid #eae7e0; border-radius: 16px; color: #242321; background: rgba(255,255,255,.9); box-shadow: 0 7px 22px rgba(39,34,27,.04); font-size: 14px; }
+.my-team__state { color: #77736c; }
 </style>

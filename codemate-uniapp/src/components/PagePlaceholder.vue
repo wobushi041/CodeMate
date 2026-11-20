@@ -25,7 +25,7 @@ withDefaults(defineProps<{
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #f8fafc;
+  color: #242321;
 }
 
 .placeholder__mark {
@@ -35,10 +35,10 @@ withDefaults(defineProps<{
   margin-bottom: 32rpx;
   align-items: center;
   justify-content: center;
-  border: 1rpx solid #475569;
+  border: 1rpx solid #85817a;
   border-radius: 32rpx;
-  color: #f8fafc;
-  background: #1e293b;
+  color: #242321;
+  background: #ffffff;
   font-size: 34rpx;
   font-weight: 700;
 }
@@ -52,7 +52,7 @@ withDefaults(defineProps<{
 .placeholder__description {
   max-width: 560rpx;
   margin-top: 20rpx;
-  color: #94a3b8;
+  color: #85817a;
   font-size: 28rpx;
   line-height: 1.7;
   text-align: center;

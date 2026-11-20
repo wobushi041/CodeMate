@@ -1,145 +1,99 @@
 <template>
-  <view class="partner-card">
-    <view class="partner-card__main">
-      <image v-if="user.avatarUrl" class="partner-card__avatar" :src="user.avatarUrl" mode="aspectFill" />
-      <view v-else class="partner-card__avatar partner-card__avatar--fallback">{{ displayName.slice(0, 1) }}</view>
-      <view class="partner-card__content">
-        <view class="partner-card__heading">
-          <text class="partner-card__name">{{ displayName }}</text>
-          <text v-if="user.planetCode" class="partner-card__code">#{{ user.planetCode }}</text>
-        </view>
-        <text class="partner-card__account">{{ user.userAccount || '编程伙伴' }}</text>
-        <view class="partner-card__tags">
-          <text v-for="tag in tags" :key="tag" class="partner-card__tag">{{ tag }}</text>
-          <text v-if="!tags.length" class="partner-card__tag">暂未设置标签</text>
+  <view v-if="loading" class="partner-card partner-card--loading">
+    <view class="loading-avatar" />
+    <view class="loading-lines"><view /><view /><view /></view>
+  </view>
+
+  <view v-else-if="user" class="partner-card">
+    <view class="partner-avatar-wrap">
+      <image class="partner-avatar" :src="avatarUrl" mode="aspectFill" @error="avatarError = true" />
+    </view>
+    <view class="partner-info">
+      <view>
+        <view class="partner-name">{{ displayName }}</view>
+        <view class="partner-subtitle">寻找项目队友</view>
+        <view class="partner-tags">
+          <text v-for="tag in tags" :key="tag">{{ tag }}</text>
+          <text v-if="!tags.length">暂未设置标签</text>
         </view>
       </view>
+      <view class="contact-row">
+        <button
+          :class="{ 'contact-button--contacted': contacted }"
+          :disabled="contacting"
+          @click.stop="emit('contact', user)"
+        >
+          <wd-icon v-if="contacting" name="refresh" class="is-spinning" size="16px" />
+          <wd-icon v-else-if="!contacted" name="jump" size="16px" />
+          <wd-icon v-else name="check" size="16px" />
+          <text>{{ contacting ? '发起中...' : contacted ? '已联系' : '联系我' }}</text>
+        </button>
+      </view>
     </view>
-    <button
-      class="partner-card__contact"
-      :class="{ 'partner-card__contact--done': contacted }"
-      :disabled="contacting"
-      @click="emit('contact', user)"
-    >
-      {{ contacting ? '正在打开…' : contacted ? '继续沟通' : '联系 TA' }}
-    </button>
   </view>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { UserType } from '@/types/api'
 import { normalizeTags } from '@/utils/format'
 
 const props = withDefaults(defineProps<{
-  user: UserType
+  user?: UserType
   contacted?: boolean
   contacting?: boolean
+  loading?: boolean
 }>(), {
   contacted: false,
   contacting: false,
+  loading: false,
 })
 
-const emit = defineEmits<{
-  (event: 'contact', user: UserType): void
-}>()
-
-const tags = computed(() => normalizeTags(props.user.tags))
-const displayName = computed(() => props.user.username || props.user.userAccount || '编程伙伴')
+const emit = defineEmits<{ (event: 'contact', user: UserType): void }>()
+const fallbackAvatar = 'https://api.dicebear.com/8.x/initials/svg?seed=Code&backgroundColor=334155&fontFamily=Arial'
+const avatarError = ref(false)
+watch(() => props.user?.id, () => { avatarError.value = false })
+const avatarUrl = computed(() => avatarError.value ? fallbackAvatar : props.user?.avatarUrl || fallbackAvatar)
+const tags = computed(() => normalizeTags(props.user?.tags))
+const displayName = computed(() => {
+  if (!props.user) return ''
+  const name = props.user.username || props.user.userAccount || '编程伙伴'
+  return props.user.planetCode ? `${name}(${props.user.planetCode})` : name
+})
 </script>
 
 <style scoped>
-.partner-card {
-  margin-bottom: 24rpx;
-  padding: 28rpx;
-  border: 1rpx solid #334155;
-  border-radius: 28rpx;
-  background: #1e293b;
-}
-
-.partner-card__main {
-  display: flex;
-  align-items: flex-start;
-}
-
-.partner-card__avatar {
-  display: flex;
-  width: 112rpx;
-  height: 112rpx;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: 24rpx;
-  background: #334155;
-}
-
-.partner-card__avatar--fallback {
-  color: #f8fafc;
-  font-size: 42rpx;
-  font-weight: 700;
-}
-
-.partner-card__content {
-  min-width: 0;
-  margin-left: 24rpx;
-  flex: 1;
-}
-
-.partner-card__heading {
-  display: flex;
-  align-items: center;
-}
-
-.partner-card__name {
-  overflow: hidden;
-  max-width: 320rpx;
-  font-size: 32rpx;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.partner-card__code {
-  margin-left: 12rpx;
-  color: #64748b;
-  font-size: 22rpx;
-}
-
-.partner-card__account {
-  display: block;
-  margin-top: 8rpx;
-  color: #94a3b8;
-  font-size: 24rpx;
-}
-
-.partner-card__tags {
-  display: flex;
-  margin-top: 16rpx;
-  flex-wrap: wrap;
-  gap: 10rpx;
-}
-
-.partner-card__tag {
-  padding: 6rpx 14rpx;
-  border-radius: 999rpx;
-  color: #cbd5e1;
-  background: #334155;
-  font-size: 21rpx;
-}
-
-.partner-card__contact {
-  width: 100%;
-  height: 72rpx;
-  margin-top: 24rpx;
-  border-radius: 18rpx;
-  color: #0f172a;
-  background: #f8fafc;
-  font-size: 26rpx;
-  line-height: 72rpx;
-}
-
-.partner-card__contact--done {
-  color: #f8fafc;
-  background: #334155;
-}
+.partner-card { display: flex; box-sizing: border-box; width: 100%; max-width: 100%; min-width: 0; min-height: 112px; gap: 16px; padding: 16px; overflow: hidden; border: 1px solid transparent; border-radius: 16px; background: #ffffff; transition: transform .15s ease, box-shadow .15s ease; }
+.partner-avatar-wrap { position: relative; width: 80px; height: 80px; flex: 0 0 auto; }
+.partner-avatar { display: block; width: 80px; height: 80px; border-radius: 12px; background: #eae7e0; }
+.partner-info { display: flex; width: 0; min-width: 0; flex: 1 1 0; flex-direction: column; justify-content: space-between; }
+.partner-info > view { min-width: 0; }
+.partner-name { width: 100%; max-width: 100%; overflow: hidden; color: #242321; font-size: 16px; font-weight: 600; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }
+.partner-subtitle { margin-top: 4px; color: #66635d; font-size: 12px; line-height: 16px; }
+.partner-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.partner-tags text { padding: 4px 12px; border-radius: 999px; color: #66635d; background: #eae7e0; font-size: 12px; line-height: 16px; }
+.contact-row { display: flex; justify-content: flex-end; margin-top: 16px; }
+.contact-row button { display: inline-flex; max-width: 100%; min-height: 36px; margin: 0; padding: 8px 20px; align-items: center; gap: 8px; border: 0; border-radius: 999px; color: #242321; background: #fff; font-size: 14px; font-weight: 600; line-height: 20px; box-shadow: 0 4px 8px rgba(2,6,23,.18); }
+.contact-row button::after { border: 0; }
+.contact-row button:active { transform: scale(.95); background: #f4f4f5; }
+.contact-row button.contact-button--contacted { color: #447153; background: rgba(34,197,94,.14); }
+.contact-row button:disabled { opacity: .65; }
+.partner-card--loading { min-height: 144px; }
+.loading-avatar { width: 80px; height: 80px; flex: 0 0 80px; border-radius: 12px; background: #eae7e0; animation: loading-pulse 1.4s ease-in-out infinite; }
+.loading-lines { display: grid; flex: 1; align-content: start; gap: 10px; padding-top: 4px; }
+.loading-lines view { display: block; height: 10px; border-radius: 999px; background: #eae7e0; animation: loading-pulse 1.4s ease-in-out infinite; }
+.loading-lines view:nth-child(2) { width: 72%; }
+.loading-lines view:nth-child(3) { width: 48%; }
+.is-spinning { animation: spin .8s linear infinite; }
+@keyframes loading-pulse { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.partner-card { border: 1px solid #eae7e0; border-radius: 20px; background: rgba(255,255,255,.92); box-shadow: 0 12px 34px rgba(39,34,27,.07); }
+.partner-avatar { border-radius: 14px; background: #ebe8e1; }
+.partner-name { color: #242321; font-size: 17px; }
+.partner-subtitle { color: #77736c; }
+.partner-tags text { border: 1px solid #eee8db; color: #6f654c; background: #f8f0dd; }
+.contact-row button { color: #fff; background: #242321; box-shadow: 0 6px 14px rgba(39,34,27,.12); }
+.contact-row button:active { background: #49443f; }
+.contact-row button.contact-button--contacted { border: 1px solid #b9d7c0; color: #447153; background: #edf6ef; }
+.loading-avatar, .loading-lines view { background: #eeeae2; }
 </style>
