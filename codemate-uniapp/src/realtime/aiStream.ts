@@ -8,6 +8,14 @@ export interface AiStreamHandlers {
   onComplete: () => void
 }
 
+interface ChunkReceivedResult {
+  data: ArrayBuffer
+}
+
+type ChunkedRequestTask = UniApp.RequestTask & {
+  onChunkReceived: (callback: (result: ChunkReceivedResult) => void) => void
+}
+
 function readBusinessError(raw: string): string {
   const text = raw.trim()
   if (!text.startsWith('{')) return ''
@@ -191,7 +199,7 @@ export function streamAiChat(message: string, handlers: AiStreamHandlers): () =>
     header: token ? { Authorization: `Bearer ${token}` } : {},
     responseType: 'arraybuffer',
     enableChunked: true,
-    success: (response: any) => {
+    success: (response) => {
       if (finished) return
       try {
         if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -211,10 +219,10 @@ export function streamAiChat(message: string, handlers: AiStreamHandlers): () =>
         fail(error)
       }
     },
-    fail: (error: any) => fail(error?.errMsg || 'AI 请求失败'),
-  } as any)
+    fail: (error) => fail(error.errMsg || 'AI 请求失败'),
+  }) as ChunkedRequestTask
 
-  requestTask.onChunkReceived((response: any) => {
+  requestTask.onChunkReceived((response) => {
     if (finished) return
     try {
       if (!(response.data instanceof ArrayBuffer)) return

@@ -48,7 +48,7 @@ export function redirectAfterLogin(raw?: string): void {
   const path = target.split('?')[0]
 
   if (TAB_PAGES.has(path)) {
-    uni.switchTab({ url: path })
+    uni.reLaunch({ url: path })
     return
   }
 

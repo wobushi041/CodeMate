@@ -27,6 +27,7 @@ export class ChatSocket {
     const socket = uni.connectSocket({
       url: WS_BASE_URL,
       header: token ? { Authorization: `Bearer ${token}` } : {},
+      complete: () => undefined,
     })
     this.socket = socket
 
