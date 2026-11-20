@@ -1,5 +1,5 @@
 <template>
-  <TeamForm submit-text="创建队伍" :submitting="submitting" @submit="submit" />
+  <TeamForm submit-text="提交" :submitting="submitting" @submit="submit" />
 </template>
 
 <script setup lang="ts">

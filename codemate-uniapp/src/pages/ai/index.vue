@@ -1,255 +1,164 @@
 <template>
   <view class="ai-page">
-    <scroll-view class="ai-page__messages" scroll-y :scroll-into-view="scrollIntoView" :scroll-with-animation="true">
-      <view v-if="!messages.length" class="ai-welcome">
-        <text class="ai-welcome__title">AI 编程助手</text>
-        <text class="ai-welcome__text">可以向我提问编程学习、项目开发和技术选型问题。</text>
-      </view>
-
+    <view class="ai-header"><view>AI 编程助手</view></view>
+    <scroll-view class="message-list" scroll-y :scroll-into-view="scrollIntoView" :scroll-with-animation="true">
       <view
         v-for="(message, index) in messages"
         :id="`ai-message-${index}`"
         :key="message.id"
-        class="ai-message"
-        :class="{ 'ai-message--user': message.role === 'user' }"
+        class="message-row"
+        :class="message.role === 'user' ? 'message-row--user' : 'message-row--ai'"
       >
-        <view class="ai-message__role">{{ message.role === 'user' ? '我' : 'AI 助手' }}</view>
-        <view class="ai-message__bubble">
-          <MarkdownText :content="message.content || (message.role === 'ai' && loading ? '正在思考…' : '')" />
+        <view v-if="message.role === 'ai'" class="ai-message-wrap">
+          <view class="ai-message-icon"><wd-icon name="chat" size="30px" /></view>
+          <view class="message-bubble ai-message-bubble" :class="{ 'message-bubble--loading': isStreaming(message, index) }">
+            <wd-icon v-if="isStreaming(message, index)" name="refresh" class="loading-icon" size="22px" />
+            <MarkdownText v-else class="message-text" :content="message.content" />
+          </view>
+          <text v-if="!isStreaming(message, index)" class="message-time message-time--ai">{{ formatMessageTime(message.createdAt) }}</text>
         </view>
+        <template v-else>
+          <view class="user-message-content">
+            <view class="message-bubble user-message-bubble"><MarkdownText class="message-text" :content="message.content" /></view>
+            <text class="message-time message-time--user">{{ formatMessageTime(message.createdAt) }}</text>
+          </view>
+          <image class="user-avatar" :src="userAvatar" mode="aspectFill" />
+        </template>
       </view>
     </scroll-view>
 
-    <view v-if="errorText" class="ai-page__error">{{ errorText }}</view>
-    <view class="ai-page__composer">
-      <textarea
-        v-model="input"
-        class="ai-page__input"
-        placeholder="输入编程问题…"
-        :maxlength="500"
-        auto-height
-      />
-      <button v-if="loading" class="ai-page__stop" @click="stop">停止</button>
-      <button v-else class="ai-page__send" :disabled="!input.trim()" @click="send">发送</button>
+    <view v-if="errorText" class="ai-error">{{ errorText }}</view>
+    <view class="ai-input-dock">
+      <view class="input-shell">
+        <input v-model="input" class="message-input" type="text" placeholder="输入你的问题..." confirm-type="send" :disabled="loading" @confirm="send" />
+        <button class="send-button" :disabled="loading || !input.trim()" @click="send">
+          <wd-icon v-if="loading" name="refresh" class="loading-icon" size="21px" />
+          <wd-icon v-else name="jump" size="21px" />
+        </button>
+      </view>
     </view>
+    <AppTabbar active="ai" />
   </view>
 </template>
 
 <script setup lang="ts">
-import { nextTick, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onUnmounted, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+import AppTabbar from '@/components/AppTabbar.vue'
 import MarkdownText from '@/components/MarkdownText.vue'
 import { streamAiChat } from '@/realtime/aiStream'
+import { useUserStore } from '@/store/user'
 import { requireLogin } from '@/utils/navigation'
 
-interface AiMessage {
-  id: string
-  role: 'user' | 'ai'
-  content: string
-}
-
+interface AiMessage { id: string; role: 'user' | 'ai'; content: string; createdAt: number }
+const userStore = useUserStore()
 const messages = ref<AiMessage[]>([])
 const input = ref('')
 const loading = ref(false)
 const errorText = ref('')
 const scrollIntoView = ref('')
+const userAvatar = computed(() => userStore.userInfo?.avatarUrl || 'https://api.dicebear.com/8.x/initials/svg?seed=Code&backgroundColor=334155&fontFamily=Arial')
 let cancelStream: (() => void) | null = null
 let revealTimer: ReturnType<typeof setInterval> | null = null
 let revealQueue = ''
 let activeAiIndex = -1
 
-onShow(() => requireLogin())
+onShow(() => {
+  uni.hideTabBar({ animation: false })
+  if (requireLogin() && !userStore.userInfo) userStore.fetchCurrentUser().catch(() => undefined)
+})
 onUnmounted(() => stop())
+function isStreaming(message: AiMessage, index: number) { return loading.value && message.role === 'ai' && index === messages.value.length - 1 && !message.content }
+function formatMessageTime(timestamp: number) { const date = new Date(timestamp); return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}` }
 
 function send() {
   const content = input.value.trim()
   if (!content || loading.value) return
   errorText.value = ''
-  messages.value.push({ id: `user-${Date.now()}`, role: 'user', content })
-  messages.value.push({ id: `ai-${Date.now()}`, role: 'ai', content: '' })
+  const now = Date.now()
+  messages.value.push({ id: `user-${now}`, role: 'user', content, createdAt: now })
+  messages.value.push({ id: `ai-${now}`, role: 'ai', content: '', createdAt: now })
   activeAiIndex = messages.value.length - 1
   input.value = ''
   loading.value = true
   scrollToBottom()
-
   cancelStream = streamAiChat(content, {
-    onText: (text) => {
-      revealQueue += text
-      startReveal()
-    },
+    onText: (text) => { revealQueue += text; startReveal() },
     onError: (message) => {
       flushReveal()
       errorText.value = message || 'AI 回复失败，请稍后重试'
-      if (!messages.value[activeAiIndex]?.content) {
-        messages.value[activeAiIndex].content = '本次回复失败，请重新发送问题。'
-      }
+      if (!messages.value[activeAiIndex]?.content) messages.value[activeAiIndex].content = '本次回复失败，请重新发送问题。'
       finish()
     },
-    onComplete: () => {
-      flushReveal()
-      finish()
-    },
+    onComplete: () => { flushReveal(); finish() },
   })
 }
-
 function startReveal() {
   if (revealTimer) return
   revealTimer = setInterval(() => {
-    if (activeAiIndex < 0 || !revealQueue) {
-      clearRevealTimer()
-      return
-    }
+    if (activeAiIndex < 0 || !revealQueue) { clearRevealTimer(); return }
     const count = Math.min(24, Math.max(1, Math.ceil(revealQueue.length / 60)))
     messages.value[activeAiIndex].content += revealQueue.slice(0, count)
     revealQueue = revealQueue.slice(count)
     scrollToBottom()
   }, 35)
 }
-
 function flushReveal() {
-  if (activeAiIndex >= 0 && revealQueue) {
-    messages.value[activeAiIndex].content += revealQueue
-    revealQueue = ''
-  }
-  clearRevealTimer()
-  scrollToBottom()
+  if (activeAiIndex >= 0 && revealQueue) { messages.value[activeAiIndex].content += revealQueue; revealQueue = '' }
+  clearRevealTimer(); scrollToBottom()
 }
-
-function clearRevealTimer() {
-  if (revealTimer) clearInterval(revealTimer)
-  revealTimer = null
-}
-
-function finish() {
-  loading.value = false
-  cancelStream = null
-  activeAiIndex = -1
-  revealQueue = ''
-}
-
-function stop() {
-  cancelStream?.()
-  cancelStream = null
-  flushReveal()
-  finish()
-}
-
+function clearRevealTimer() { if (revealTimer) clearInterval(revealTimer); revealTimer = null }
+function finish() { loading.value = false; cancelStream = null; activeAiIndex = -1; revealQueue = '' }
+function stop() { cancelStream?.(); cancelStream = null; flushReveal(); finish() }
 function scrollToBottom() {
   nextTick(() => {
     if (!messages.value.length) return
     scrollIntoView.value = ''
-    nextTick(() => {
-      scrollIntoView.value = `ai-message-${messages.value.length - 1}`
-    })
+    nextTick(() => { scrollIntoView.value = `ai-message-${messages.value.length - 1}` })
   })
 }
 </script>
 
 <style scoped>
-.ai-page {
-  display: flex;
-  height: 100vh;
-  flex-direction: column;
-  background: #0f172a;
-}
-
-.ai-page__messages {
-  min-height: 0;
-  padding: 28rpx;
-  flex: 1;
-}
-
-.ai-welcome {
-  display: flex;
-  padding: 120rpx 36rpx;
-  flex-direction: column;
-  align-items: center;
-}
-
-.ai-welcome__title {
-  font-size: 44rpx;
-  font-weight: 800;
-}
-
-.ai-welcome__text {
-  margin-top: 20rpx;
-  color: #94a3b8;
-  font-size: 26rpx;
-  line-height: 1.7;
-  text-align: center;
-}
-
-.ai-message {
-  margin-bottom: 28rpx;
-}
-
-.ai-message__role {
-  margin-bottom: 10rpx;
-  color: #94a3b8;
-  font-size: 22rpx;
-}
-
-.ai-message__bubble {
-  padding: 22rpx 24rpx;
-  border: 1rpx solid #334155;
-  border-radius: 8rpx 24rpx 24rpx 24rpx;
-  color: #e2e8f0;
-  background: #1e293b;
-}
-
-.ai-message--user .ai-message__role {
-  text-align: right;
-}
-
-.ai-message--user .ai-message__bubble {
-  border-radius: 24rpx 8rpx 24rpx 24rpx;
-  color: #0f172a;
-  background: #f8fafc;
-}
-
-.ai-page__error {
-  padding: 12rpx 24rpx;
-  color: #fecaca;
-  background: #451a1a;
-  font-size: 22rpx;
-}
-
-.ai-page__composer {
-  display: flex;
-  padding: 18rpx 20rpx calc(18rpx + env(safe-area-inset-bottom));
-  align-items: flex-end;
-  gap: 16rpx;
-  border-top: 1rpx solid #334155;
-  background: #1e293b;
-}
-
-.ai-page__input {
-  width: auto;
-  min-height: 80rpx;
-  max-height: 220rpx;
-  padding: 20rpx 24rpx;
-  flex: 1;
-  border-radius: 20rpx;
-  color: #f8fafc;
-  background: #0f172a;
-  font-size: 26rpx;
-}
-
-.ai-page__send,
-.ai-page__stop {
-  width: 116rpx;
-  height: 80rpx;
-  padding: 0;
-  flex: 0 0 auto;
-  border-radius: 20rpx;
-  color: #0f172a;
-  background: #f8fafc;
-  font-size: 25rpx;
-  line-height: 80rpx;
-}
-
-.ai-page__stop {
-  color: #f8fafc;
-  background: #475569;
-}
+.ai-page { display: flex; height: calc(100vh - 64px - env(safe-area-inset-bottom)); min-height: 0; flex-direction: column; overflow: hidden; color: #242321; background: #faf9f6; }
+.ai-header { display: flex; min-height: 54px; flex: 0 0 auto; align-items: center; justify-content: center; padding: calc(22px + var(--status-bar-height)) 16px 12px; color: #242321; background: #faf9f6; font-size: 20px; font-weight: 700; line-height: 28px; letter-spacing: -.025em; }
+.message-list { width: 100%; min-height: 0; flex: 1; padding: 20px 16px 16px; overflow-x: hidden; }
+.message-row { display: flex; width: 100%; margin-bottom: 48px; align-items: flex-start; gap: 16px; }
+.message-row:last-child { margin-bottom: 0; }
+.message-row--ai { justify-content: flex-start; }
+.message-row--user { justify-content: flex-end; }
+.ai-message-wrap { position: relative; display: flex; min-width: 0; padding-top: 8px; padding-left: 24px; flex: 1; flex-direction: column; }
+.ai-message-icon { position: absolute; top: -12px; left: -12px; z-index: 2; display: grid; width: 34px; height: 34px; place-items: center; color: #bd9226; background: #faf9f6; }
+.message-bubble { font-size: 14px; line-height: 1.75; overflow-wrap: break-word; }
+.ai-message-bubble { position: relative; width: 100%; min-height: 64px; padding: 20px 28px 30px; border: 1px solid rgba(51,65,85,.5); border-radius: 24px 24px 24px 0; color: #242321; background: #ffffff; box-shadow: 0 10px 25px rgba(2,6,23,.3); }
+.user-message-content { display: flex; min-width: 0; max-width: calc(100% - 60px); flex: 0 1 auto; flex-direction: column; align-items: flex-end; }
+.user-message-bubble { max-width: 100%; padding: 14px 24px; border-radius: 24px 24px 0 24px; color: #242321; background: #fff; box-shadow: 0 10px 24px rgba(2,6,23,.24); }
+.user-message-bubble :deep(.markdown-text), .user-message-bubble :deep(.markdown-text__heading) { color: #242321; }
+.user-avatar { width: 44px; height: 44px; margin-top: 4px; flex: 0 0 44px; border: 2px solid #fff; border-radius: 50%; background: #eae7e0; box-shadow: 0 8px 18px rgba(2,6,23,.3); }
+.message-bubble--loading { display: flex; min-width: 72px; min-height: 64px; padding-bottom: 20px; align-items: center; justify-content: center; }
+.loading-icon { animation: ai-spin 1s linear infinite; }
+.message-time { color: #85817a; font-family: Consolas, Monaco, monospace; font-size: 11px; line-height: 16px; }
+.message-time--ai { align-self: flex-start; margin-top: 8px; padding-left: 4px; }
+.message-time--user { align-self: flex-end; margin-top: 8px; padding-right: 4px; }
+.message-text { font-weight: 400; }
+.ai-error { flex: 0 0 auto; padding: 8px 16px; color: #fecaca; background: #451a1a; font-size: 12px; }
+.ai-input-dock { flex: 0 0 auto; padding: 12px 16px 14px; background: linear-gradient(180deg,rgba(15,23,42,0),#faf9f6 24%); }
+.input-shell { display: flex; padding: 10px; align-items: center; gap: 14px; border: 1px solid rgba(255,255,255,.1); border-radius: 999px; background: rgba(255,255,255,.05); box-shadow: 0 18px 40px rgba(2,6,23,.4); backdrop-filter: blur(20px); }
+.message-input { min-width: 0; height: 48px; padding: 0 24px; flex: 1; border: 1px solid rgba(255,255,255,.05); border-radius: 999px; color: #242321; background: rgba(15,23,42,.65); font-size: 14px; }
+.send-button { display: grid; width: 48px; height: 48px; margin: 0; padding: 0; flex: 0 0 48px; place-items: center; border: 0; border-radius: 50%; color: #fff; background: #bd9226; box-shadow: 0 8px 18px rgba(59,130,246,.3); }
+.send-button::after { border: 0; }
+.send-button:not(:disabled):active { transform: scale(.93); background: #49443f; }
+.send-button:disabled, .send-button[disabled] { color: #fff; background: #bd9226; opacity: .5; }
+@keyframes ai-spin { to { transform: rotate(360deg); } }
+.ai-page, .ai-header { color: #242321; background: #f7f6f3; }
+.ai-message-bubble { border-color: #eae7e0; color: #242321; background: #fff; box-shadow: 0 8px 22px rgba(39,34,27,.06); }
+.user-message-bubble { border: 1px solid #242321; color: #fff; background: #242321; box-shadow: 0 12px 34px rgba(39,34,27,.07); }
+.user-message-bubble :deep(.markdown-text), .user-message-bubble :deep(.markdown-text__heading), .user-message-bubble :deep(.markdown-text__paragraph) { color: #fff; }
+.user-avatar { border-color: #fff; background: #eeeae2; box-shadow: 0 12px 34px rgba(39,34,27,.07); }
+.message-time { color: #77736c; font-family: inherit; }
+.ai-error { color: #a34d47; background: #fff6f3; }
+.ai-input-dock { background: transparent; }
+.input-shell { gap: 8px; padding: 7px; border-color: rgba(255,255,255,.84); background: rgba(255,255,255,.56); box-shadow: 0 10px 30px rgba(39,34,27,.1); }
+.message-input { height: 44px; padding: 0 16px; border-color: transparent; color: #242321; background: transparent; }
+.send-button, .send-button:disabled, .send-button[disabled] { width: 44px; height: 44px; flex-basis: 44px; color: #fff; background: #242321; box-shadow: none; }
 </style>

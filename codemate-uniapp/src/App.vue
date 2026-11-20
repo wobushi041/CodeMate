@@ -9,9 +9,9 @@ onLaunch(() => {
 <style>
 page {
   min-height: 100%;
-  color: #f8fafc;
-  background: #0f172a;
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #242321;
+  background: #faf9f6;
+  font-family: 'Source Han Sans SC', -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 view,
@@ -19,7 +19,9 @@ text,
 button,
 input,
 textarea,
-scroll-view {
+scroll-view,
+picker,
+image {
   box-sizing: border-box;
 }
 

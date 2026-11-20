@@ -80,7 +80,9 @@ async function contactUser(user: UserType) {
 
 .search-result__state {
   padding: 100rpx 24rpx;
-  color: #64748b;
+  color: #85817a;
   text-align: center;
 }
+.search-result { display: flex; min-height: 100vh; padding: 16px 18px 30px; flex-direction: column; gap: 12px; color: #242321; background: #faf9f6; }
+.search-result__state { color: #77736c; }
 </style>

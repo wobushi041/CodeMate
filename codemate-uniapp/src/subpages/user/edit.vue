@@ -115,12 +115,16 @@ function chooseAvatar() {
     sizeType: ['compressed'],
     sourceType: ['album', 'camera'],
     success: (result) => {
-      const file = result.tempFiles?.[0]
+      const files = result.tempFiles
+        ? (Array.isArray(result.tempFiles) ? result.tempFiles : [result.tempFiles])
+        : []
+      const file = files[0]
       if (file?.size && file.size > 2 * 1024 * 1024) {
         uni.showToast({ title: '头像不能超过 2MB', icon: 'none' })
         return
       }
-      const path = result.tempFilePaths[0]
+      const paths = Array.isArray(result.tempFilePaths) ? result.tempFilePaths : [result.tempFilePaths]
+      const path = (file && 'path' in file ? file.path : '') || paths[0]
       if (path) {
         selectedAvatarPath.value = path
         avatarPreview.value = path
@@ -176,104 +180,36 @@ async function save() {
 </script>
 
 <style scoped>
-.user-edit {
-  min-height: 100vh;
-  padding: 36rpx 28rpx 56rpx;
-}
-
-.user-edit__avatar-section {
-  display: flex;
-  margin-bottom: 36rpx;
-  flex-direction: column;
-  align-items: center;
-}
-
-.user-edit__avatar {
-  display: flex;
-  width: 160rpx;
-  height: 160rpx;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: #334155;
-}
-
-.user-edit__avatar--fallback {
-  font-size: 58rpx;
-  font-weight: 700;
-}
-
-.user-edit__avatar-section button {
-  margin-top: 20rpx;
-  color: #cbd5e1;
-  background: #1e293b;
-  font-size: 24rpx;
-}
-
-.user-edit__field {
-  padding: 24rpx 0;
-  border-bottom: 1rpx solid #334155;
-}
-
-.user-edit__field > text {
-  display: block;
-  margin-bottom: 16rpx;
-  color: #94a3b8;
-  font-size: 24rpx;
-}
-
-.user-edit__field input,
-.user-edit__field textarea {
-  width: 100%;
-  color: #f8fafc;
-  font-size: 28rpx;
-}
-
-.user-edit__field textarea {
-  min-height: 140rpx;
-}
-
-.user-edit__gender {
-  display: flex;
-  gap: 20rpx;
-}
-
-.user-edit__gender button {
-  margin: 0;
-  padding: 0 36rpx;
-  color: #94a3b8;
-  background: #1e293b;
-  font-size: 25rpx;
-}
-
-.user-edit__gender button.active {
-  color: #0f172a;
-  background: #f8fafc;
-}
-
-.user-edit__quick-tags {
-  display: flex;
-  margin-top: 20rpx;
-  flex-wrap: wrap;
-  gap: 12rpx;
-}
-
-.user-edit__quick-tags text {
-  padding: 8rpx 18rpx;
-  border-radius: 999rpx;
-  color: #cbd5e1;
-  background: #1e293b;
-  font-size: 22rpx;
-}
-
-.user-edit__quick-tags text.active {
-  color: #bfdbfe;
-  background: #172554;
-}
-
-.user-edit__submit {
-  margin-top: 40rpx;
-  color: #0f172a;
-  background: #f8fafc;
-}
+.user-edit { width: calc(100% - 32px); max-width: 520px; margin: 18px auto 34px; padding: 24px 20px 26px; border: 1px solid rgba(255,255,255,.08); border-radius: 24px; background: #ffffff; box-shadow: 0 20px 42px rgba(2,6,23,.35); }
+.user-edit__avatar-section { display: flex; margin-bottom: 30px; flex-direction: column; align-items: center; }
+.user-edit__avatar { display: flex; width: 128px; height: 128px; align-items: center; justify-content: center; border: 4px solid rgba(255,255,255,.1); border-radius: 50%; background: #eae7e0; box-shadow: 0 18px 36px rgba(2,6,23,.42),0 0 28px rgba(59,130,246,.14); }
+.user-edit__avatar--fallback { color: #242321; font-size: 42px; font-weight: 700; }
+.user-edit__avatar-section button { height: 34px; margin: 16px 0 0; padding: 0 16px; border: 1px solid rgba(147,197,253,.58); border-radius: 999px; color: #eff6ff; background: rgba(2,6,23,.5); font-size: 12px; line-height: 32px; }
+.user-edit__avatar-section button::after, .user-edit__gender button::after, .user-edit__submit::after { border: 0; }
+.user-edit__field { padding: 16px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.user-edit__field > text { display: block; margin-bottom: 10px; color: #85817a; font-size: 12px; font-weight: 500; }
+.user-edit__field input, .user-edit__field textarea { width: 100%; min-height: 42px; padding: 10px 14px; border: 1px solid #eae7e0; border-radius: 12px; color: #242321; background: #faf9f6; font-size: 14px; }
+.user-edit__field textarea { min-height: 88px; line-height: 1.6; }
+.user-edit__gender { display: flex; gap: 12px; }
+.user-edit__gender button { min-height: 40px; margin: 0; padding: 8px 24px; flex: 1; border: 1px solid #eae7e0; border-radius: 12px; color: #85817a; background: #faf9f6; font-size: 14px; }
+.user-edit__gender button.active { border-color: #fff; color: #faf9f6; background: #242321; font-weight: 600; }
+.user-edit__quick-tags { display: flex; margin-top: 12px; flex-wrap: wrap; gap: 8px; }
+.user-edit__quick-tags text { padding: 5px 12px; border-radius: 999px; color: #66635d; background: #eae7e0; font-size: 12px; line-height: 18px; }
+.user-edit__quick-tags text.active { color: #8c6c24; background: #f8f0dd; }
+.user-edit__submit { display: flex; width: 100%; height: 52px; margin: 26px 0 0; padding: 0; align-items: center; justify-content: center; border: 0; border-radius: 999px; color: #fff; background: #bd9226; box-shadow: 0 12px 24px rgba(37,99,235,.3); font-size: 15px; font-weight: 600; }
+.user-edit__submit:active { transform: scale(.98); background: #49443f; }
+.user-edit__submit:disabled { opacity: .7; }
+.user-edit { border: 1px solid #eae7e0; border-radius: 22px; background: #fff; box-shadow: 0 12px 34px rgba(39,34,27,.07); }
+.user-edit__avatar { border-color: #fff; color: #242321; background: #eeeae2; box-shadow: 0 12px 34px rgba(39,34,27,.07); }
+.user-edit__avatar--fallback { color: #242321; }
+.user-edit__avatar-section button { border-color: #e6d7b5; color: #8c6c24; background: rgba(250,246,235,.88); }
+.user-edit__field { border-color: #eae7e0; }
+.user-edit__field > text { color: #77736c; }
+.user-edit__field input, .user-edit__field textarea { border-color: #eae7e0; color: #242321; background: #faf9f6; }
+.user-edit__gender button { border-color: #eae7e0; color: #77736c; background: #faf9f6; }
+.user-edit__gender button.active { border-color: #242321; color: #fff; background: #242321; }
+.user-edit__quick-tags text { color: #242321; background: #f7f5f0; }
+.user-edit__quick-tags text.active { color: #8c6c24; background: #f8f0dd; }
+.user-edit__submit { color: #fff; background: #242321; box-shadow: 0 12px 34px rgba(39,34,27,.07); }
+.user-edit__submit:active { background: #49443f; }
 </style>

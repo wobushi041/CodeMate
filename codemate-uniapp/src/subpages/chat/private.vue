@@ -62,7 +62,7 @@ onHide(() => roomRef.value?.close())
 <style scoped>
 .chat-page__state {
   padding: 100rpx 32rpx;
-  color: #94a3b8;
+  color: #85817a;
   text-align: center;
 }
 </style>
