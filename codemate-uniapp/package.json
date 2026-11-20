@@ -8,25 +8,28 @@
     "dev:app": "uni -p app",
     "build:h5": "uni build -p h5",
     "build:mp-weixin": "uni build -p mp-weixin",
-    "build:app": "uni build -p app"
+    "build:app": "uni build -p app",
+    "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "@dcloudio/uni-app": "latest",
-    "@dcloudio/uni-app-plus": "latest",
-    "@dcloudio/uni-components": "latest",
-    "@dcloudio/uni-h5": "latest",
-    "@dcloudio/uni-mp-weixin": "latest",
-    "pinia": "^2.3.1",
-    "vue": "^3.4.38",
-    "wot-design-uni": "^1.14.0"
+    "@dcloudio/uni-app": "3.0.0-5030420261029002",
+    "@dcloudio/uni-app-plus": "3.0.0-5030420261029002",
+    "@dcloudio/uni-components": "3.0.0-5030420261029002",
+    "@dcloudio/uni-h5": "3.0.0-5030420261029002",
+    "@dcloudio/uni-mp-weixin": "3.0.0-5030420261029002",
+    "pinia": "2.2.2",
+    "vue": "3.4.21",
+    "wot-design-uni": "1.14.0"
   },
   "devDependencies": {
-    "@dcloudio/types": "latest",
-    "@dcloudio/uni-automator": "latest",
-    "@dcloudio/uni-cli-shared": "latest",
-    "@dcloudio/vite-plugin-uni": "latest",
-    "@vue/tsconfig": "^0.5.1",
-    "typescript": "^5.4.5",
-    "vite": "^5.2.8"
+    "@dcloudio/types": "3.4.31",
+    "@dcloudio/uni-automator": "3.0.0-5030420261029002",
+    "@dcloudio/uni-cli-shared": "3.0.0-5030420261029002",
+    "@dcloudio/vite-plugin-uni": "3.0.0-5030420261029002",
+    "@vue/tsconfig": "0.5.1",
+    "sass": "1.77.8",
+    "typescript": "5.4.5",
+    "vite": "5.2.8",
+    "vue-tsc": "2.2.12"
   }
 }
