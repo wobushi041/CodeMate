@@ -40,15 +40,22 @@ import { getTeamList } from '@/api/team'
 import { useUserStore } from '@/store/user'
 import type { TeamType } from '@/types/team'
 import { requireLogin } from '@/utils/navigation'
+import { useUnreadStore } from '@/store/unread'
 
 const userStore = useUserStore()
+const unreadStore = useUnreadStore()
 const teams = ref<TeamType[]>([])
 const searchText = ref('')
 const status = ref(0)
 const loading = ref(false)
 let loadSerial = 0
 
-onShow(() => { uni.hideTabBar({ animation: false }); if (requireLogin()) loadTeams() })
+onShow(() => {
+  uni.hideTabBar({ animation: false })
+  if (!requireLogin()) return
+  void unreadStore.refresh()
+  loadTeams()
+})
 async function loadTeams() {
   const serial = ++loadSerial
   const requestedStatus = status.value

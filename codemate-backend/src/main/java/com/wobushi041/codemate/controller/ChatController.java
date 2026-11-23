@@ -5,19 +5,23 @@ import com.wobushi041.codemate.chat.ChatMessageResponse;
 import com.wobushi041.codemate.common.BaseResponse;
 import com.wobushi041.codemate.common.ResultUtils;
 import com.wobushi041.codemate.model.domain.User;
+import com.wobushi041.codemate.model.vo.TeamChatUnreadVO;
 import com.wobushi041.codemate.service.ChatMessageService;
 import com.wobushi041.codemate.service.ChatRoomService;
 import com.wobushi041.codemate.service.UserService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PostMapping;
 
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Min;
+import java.util.List;
 
 /**
  * 队伍聊天控制层
@@ -27,6 +31,7 @@ import jakarta.validation.constraints.Min;
 @RestController
 @RequestMapping("/chat")
 @Validated
+@Slf4j
 public class ChatController {
 
     /**
@@ -67,7 +72,32 @@ public class ChatController {
 
         // 查询队伍聊天历史消息分页数据（含降级兜底消息合并）
         Page<ChatMessageResponse> messagePage = chatMessageService.listTeamMessagesWithFallback(teamId, pageNum, pageSize);
+        try {
+            chatRoomService.markTeamRoomRead(teamId, loginUser);
+        } catch (Exception e) {
+            log.warn("mark team chat as read failed, teamId={}, userId={}", teamId, loginUser.getId(), e);
+        }
         return ResultUtils.success(messagePage);
+    }
+
+    /**
+     * 查询当前用户各队伍聊天室的未读消息统计
+     */
+    @GetMapping("/unread")
+    public BaseResponse<List<TeamChatUnreadVO>> listUnreadCounts(HttpServletRequest request) {
+        User loginUser = userService.getLoginUserFromRequest(request);
+        return ResultUtils.success(chatRoomService.listUnreadCounts(loginUser));
+    }
+
+    /**
+     * 将指定队伍聊天室标记为已读
+     */
+    @PostMapping("/teams/{teamId}/read")
+    public BaseResponse<Boolean> markTeamRoomRead(@PathVariable("teamId") @Min(1) Long teamId,
+                                                  HttpServletRequest request) {
+        User loginUser = userService.getLoginUserFromRequest(request);
+        chatRoomService.markTeamRoomRead(teamId, loginUser);
+        return ResultUtils.success(true);
     }
 
 }

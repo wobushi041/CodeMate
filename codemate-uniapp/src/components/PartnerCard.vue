@@ -19,14 +19,16 @@
       </view>
       <view class="contact-row">
         <button
-          :class="{ 'contact-button--contacted': contacted }"
+          :class="{ 'contact-button--contacted': contacted, 'contact-button--unread': unreadCount > 0 }"
           :disabled="contacting"
           @click.stop="emit('contact', user)"
         >
           <wd-icon v-if="contacting" name="refresh" class="is-spinning" size="16px" />
+          <wd-icon v-else-if="unreadCount > 0" name="chat" size="16px" />
           <wd-icon v-else-if="!contacted" name="jump" size="16px" />
           <wd-icon v-else name="check" size="16px" />
-          <text>{{ contacting ? '发起中...' : contacted ? '已联系' : '联系我' }}</text>
+          <text>{{ contacting ? '发起中...' : unreadCount > 0 ? '查看消息' : contacted ? '已联系' : '联系我' }}</text>
+          <text v-if="unreadCount > 0" class="contact-unread-badge">{{ unreadText }}</text>
         </button>
       </view>
     </view>
@@ -37,6 +39,7 @@
 import { computed, ref, watch } from 'vue'
 import type { UserType } from '@/types/api'
 import { normalizeTags } from '@/utils/format'
+import { useUnreadStore } from '@/store/unread'
 
 const props = withDefaults(defineProps<{
   user?: UserType
@@ -50,11 +53,14 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{ (event: 'contact', user: UserType): void }>()
+const unreadStore = useUnreadStore()
 const fallbackAvatar = 'https://api.dicebear.com/8.x/initials/svg?seed=Code&backgroundColor=334155&fontFamily=Arial'
 const avatarError = ref(false)
 watch(() => props.user?.id, () => { avatarError.value = false })
 const avatarUrl = computed(() => avatarError.value ? fallbackAvatar : props.user?.avatarUrl || fallbackAvatar)
 const tags = computed(() => normalizeTags(props.user?.tags))
+const unreadCount = computed(() => unreadStore.privateCount(Number(props.user?.id || 0)))
+const unreadText = computed(() => unreadCount.value > 99 ? '99+' : String(unreadCount.value))
 const displayName = computed(() => {
   if (!props.user) return ''
   const name = props.user.username || props.user.userAccount || '编程伙伴'
@@ -73,10 +79,12 @@ const displayName = computed(() => {
 .partner-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .partner-tags text { padding: 4px 12px; border-radius: 999px; color: #66635d; background: #eae7e0; font-size: 12px; line-height: 16px; }
 .contact-row { display: flex; justify-content: flex-end; margin-top: 16px; }
-.contact-row button { display: inline-flex; max-width: 100%; min-height: 36px; margin: 0; padding: 8px 20px; align-items: center; gap: 8px; border: 0; border-radius: 999px; color: #242321; background: #fff; font-size: 14px; font-weight: 600; line-height: 20px; box-shadow: 0 4px 8px rgba(2,6,23,.18); }
+.contact-row button { position: relative; display: inline-flex; max-width: 100%; min-height: 36px; margin: 0; padding: 8px 20px; align-items: center; gap: 8px; border: 0; border-radius: 999px; color: #242321; background: #fff; font-size: 14px; font-weight: 600; line-height: 20px; box-shadow: 0 4px 8px rgba(2,6,23,.18); }
 .contact-row button::after { border: 0; }
 .contact-row button:active { transform: scale(.95); background: #f4f4f5; }
 .contact-row button.contact-button--contacted { color: #447153; background: rgba(34,197,94,.14); }
+.contact-row button.contact-button--unread { color: #fff; background: #ad4a46; }
+.contact-unread-badge { display: grid; min-width: 20px; height: 20px; padding: 0 5px; place-items: center; border: 2px solid rgba(255,255,255,.85); border-radius: 999px; color: #fff; background: #d25157; font-size: 10px; line-height: 16px; }
 .contact-row button:disabled { opacity: .65; }
 .partner-card--loading { min-height: 144px; }
 .loading-avatar { width: 80px; height: 80px; flex: 0 0 80px; border-radius: 12px; background: #eae7e0; animation: loading-pulse 1.4s ease-in-out infinite; }
@@ -95,5 +103,6 @@ const displayName = computed(() => {
 .contact-row button { color: #fff; background: #242321; box-shadow: 0 6px 14px rgba(39,34,27,.12); }
 .contact-row button:active { background: #49443f; }
 .contact-row button.contact-button--contacted { border: 1px solid #b9d7c0; color: #447153; background: #edf6ef; }
+.contact-row button.contact-button--unread { border-color: transparent; color: #fff; background: #ad4a46; }
 .loading-avatar, .loading-lines view { background: #eeeae2; }
 </style>

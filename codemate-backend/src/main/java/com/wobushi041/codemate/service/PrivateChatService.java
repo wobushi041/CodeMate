@@ -7,7 +7,10 @@ import com.wobushi041.codemate.chat.ChatMessageResponse;
 import com.wobushi041.codemate.model.domain.PrivateChatSession;
 import com.wobushi041.codemate.model.domain.User;
 import com.wobushi041.codemate.model.vo.PrivateChatSessionVO;
+import com.wobushi041.codemate.model.vo.PrivateChatUnreadVO;
 import io.netty.channel.Channel;
+
+import java.util.List;
 
 /**
  * 单人私聊服务
@@ -44,6 +47,22 @@ public interface PrivateChatService extends IService<PrivateChatSession> {
      * @return 历史聊天消息分页列表
      */
     Page<ChatMessageResponse> listSessionMessages(Long sessionId, long pageNum, long pageSize, User loginUser);
+
+    /**
+     * 查询当前用户各私聊会话的未读消息数
+     *
+     * @param loginUser 当前登录用户
+     * @return 私聊未读统计列表
+     */
+    List<PrivateChatUnreadVO> listUnreadCounts(User loginUser);
+
+    /**
+     * 将指定私聊会话中发给当前用户的消息标记为已读
+     *
+     * @param sessionId 会话 id
+     * @param loginUser 当前登录用户
+     */
+    void markSessionRead(Long sessionId, User loginUser);
 
     /**
      * 校验指定用户是否为指定私聊会话的合法参与方

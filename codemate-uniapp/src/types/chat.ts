@@ -26,3 +26,14 @@ export interface PrivateChatSession {
   targetUser?: UserType & { userName?: string }
   isTargetOnline?: boolean
 }
+
+export interface PrivateChatUnread {
+  sessionId: number
+  targetUserId: number
+  unreadCount: number
+}
+
+export interface TeamChatUnread {
+  teamId: number
+  unreadCount: number
+}

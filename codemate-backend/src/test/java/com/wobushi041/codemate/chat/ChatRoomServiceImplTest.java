@@ -3,8 +3,10 @@ package com.wobushi041.codemate.chat;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wobushi041.codemate.exception.BusinessException;
 import com.wobushi041.codemate.mapper.UserMapper;
+import com.wobushi041.codemate.mapper.UserTeamMapper;
 import com.wobushi041.codemate.model.domain.Team;
 import com.wobushi041.codemate.model.domain.User;
+import com.wobushi041.codemate.model.vo.TeamChatUnreadVO;
 import com.wobushi041.codemate.service.ChatMessageService;
 import com.wobushi041.codemate.service.ChatRoomService;
 import com.wobushi041.codemate.service.TeamService;
@@ -13,6 +15,8 @@ import com.wobushi041.codemate.service.impl.ChatRoomServiceImpl;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -42,6 +46,11 @@ class ChatRoomServiceImplTest {
     private final UserTeamService userTeamService = mock(UserTeamService.class);
 
     /**
+     * 模拟用户队伍关联持久层依赖
+     */
+    private final UserTeamMapper userTeamMapper = mock(UserTeamMapper.class);
+
+    /**
      * 聊天通道管理器实例
      */
     private final ChatChannelManager chatChannelManager = new ChatChannelManager();
@@ -62,6 +71,7 @@ class ChatRoomServiceImplTest {
     private final ChatRoomService chatRoomService = new ChatRoomServiceImpl(
             teamService,
             userTeamService,
+            userTeamMapper,
             chatChannelManager,
             chatMessageService,
             userMapper,
@@ -207,6 +217,37 @@ class ChatRoomServiceImplTest {
 
         // 3. 断言结果
         assertNotNull(sender.readOutbound());
+    }
+
+    /**
+     * 测试查询队伍聊天室未读统计
+     */
+    @Test
+    void listsTeamUnreadCountsForCurrentUser() {
+        User loginUser = user(41L);
+        TeamChatUnreadVO unread = new TeamChatUnreadVO();
+        unread.setTeamId(1L);
+        unread.setUnreadCount(4L);
+        when(userTeamMapper.listChatUnreadCounts(41L)).thenReturn(List.of(unread));
+
+        List<TeamChatUnreadVO> result = chatRoomService.listUnreadCounts(loginUser);
+
+        assertEquals(1, result.size());
+        assertEquals(4L, result.get(0).getUnreadCount());
+    }
+
+    /**
+     * 测试进入队伍聊天室后推进已读位置
+     */
+    @Test
+    void marksTeamRoomReadForMember() {
+        when(teamService.getById(1L)).thenReturn(new Team());
+        when(userTeamService.count(any())).thenReturn(1L);
+        User loginUser = user(41L);
+
+        chatRoomService.markTeamRoomRead(1L, loginUser);
+
+        verify(userTeamMapper).markTeamChatRead(1L, 41L);
     }
 
     /**
