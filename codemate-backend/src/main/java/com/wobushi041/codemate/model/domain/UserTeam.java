@@ -51,6 +51,11 @@ public class UserTeam implements Serializable {
     private Date updateTime;
 
     /**
+     * 队伍聊天室最后已读消息 id
+     */
+    private Long lastReadMessageId;
+
+    /**
      * 是否删除 0 - 未删除 1 - 已删除
      */
     @TableLogic

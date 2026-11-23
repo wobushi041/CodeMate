@@ -65,6 +65,7 @@ import { getMatchedUsers } from '@/api/partner'
 import type { UserType } from '@/types/api'
 import { getContactedUserIds, markUserContacted } from '@/utils/contacted'
 import { requireLogin } from '@/utils/navigation'
+import { useUnreadStore } from '@/store/unread'
 
 const users = ref<UserType[]>([])
 const currentIndex = ref(0)
@@ -72,12 +73,14 @@ const loading = ref(false)
 const loaded = ref(false)
 const contacting = ref(false)
 const contactedIds = ref<number[]>(getContactedUserIds())
+const unreadStore = useUnreadStore()
 const currentPartner = computed(() => users.value[currentIndex.value] || null)
 const fallbackAvatar = 'https://api.dicebear.com/8.x/initials/svg?seed=Code&backgroundColor=334155&fontFamily=Arial'
 
 onShow(() => {
   uni.hideTabBar({ animation: false })
   if (!requireLogin()) return
+  void unreadStore.refresh()
   contactedIds.value = getContactedUserIds()
   if (!loaded.value) loadUsers()
 })

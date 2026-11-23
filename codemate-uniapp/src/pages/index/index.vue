@@ -72,6 +72,7 @@ import type { UserType } from '@/types/api'
 import { getContactedUserIds, markUserContacted } from '@/utils/contacted'
 import { normalizeTags } from '@/utils/format'
 import { requireLogin } from '@/utils/navigation'
+import { useUnreadStore } from '@/store/unread'
 
 const filters = [
   { name: '全部', keywords: [] },
@@ -91,6 +92,7 @@ const pageSize = 20
 const loaded = ref(false)
 const contactingUserId = ref<number | null>(null)
 const contactedIds = ref<number[]>(getContactedUserIds())
+const unreadStore = useUnreadStore()
 
 const filteredUsers = computed(() => {
   const filter = filters.find((item) => item.name === activeFilter.value) || filters[0]
@@ -105,6 +107,7 @@ const filteredUsers = computed(() => {
 onShow(() => {
   uni.hideTabBar({ animation: false })
   if (!requireLogin()) return
+  void unreadStore.refresh()
   contactedIds.value = getContactedUserIds()
   if (!loaded.value) loadPage(1)
 })

@@ -27,7 +27,8 @@ CREATE TABLE `chat_message`  (
   `content` varchar(2048) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '消息内容',
   `createTime` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `isDelete` tinyint NOT NULL DEFAULT 0 COMMENT '是否删除',
-  PRIMARY KEY (`id`) USING BTREE
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_chat_message_unread`(`teamId`, `id`, `isDelete`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 13 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '聊天消息' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
@@ -60,7 +61,8 @@ CREATE TABLE `private_chat_message`  (
   `isRead` tinyint NOT NULL DEFAULT 0 COMMENT '是否已读 0-未读 1-已读',
   `createTime` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发送时间',
   `isDelete` tinyint NOT NULL DEFAULT 0 COMMENT '是否删除',
-  PRIMARY KEY (`id`) USING BTREE
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_private_chat_unread`(`toUserId`, `isRead`, `isDelete`, `sessionId`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 23 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '单人私聊消息' ROW_FORMAT = Dynamic;
 
 -- ----------------------------
@@ -231,10 +233,12 @@ CREATE TABLE `user_team`  (
   `userId` bigint NULL DEFAULT NULL COMMENT '用户id',
   `teamId` bigint NULL DEFAULT NULL COMMENT '队伍id',
   `joinTime` datetime NULL DEFAULT NULL COMMENT '加入时间',
+  `lastReadMessageId` bigint NOT NULL DEFAULT 0 COMMENT '聊天室最后已读消息id',
   `createTime` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updateTime` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `isDelete` tinyint NOT NULL DEFAULT 0 COMMENT '是否删除',
-  PRIMARY KEY (`id`) USING BTREE
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_user_team_unread`(`userId`, `teamId`, `isDelete`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 39 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '用户队伍关系' ROW_FORMAT = Dynamic;
 
 -- ----------------------------

@@ -33,6 +33,7 @@
         </button>
         <button v-if="isOwner(team) || team.hasJoin" class="team-action team-action--primary" @click="goChat(team)">
           <wd-icon name="chat" size="16px" /><text>聊天室</text>
+          <text v-if="unreadStore.teamCount(team.id)" class="team-unread-badge">{{ unreadText(team.id) }}</text>
         </button>
         <button v-if="!isOwner(team) && team.hasJoin" class="team-action team-action--secondary" @click="quit(team)">
           <wd-icon name="logout" size="16px" /><text>退出队伍</text>
@@ -62,6 +63,7 @@ import { ref } from 'vue'
 import { deleteTeam, joinTeam, quitTeam } from '@/api/team'
 import { TEAM_STATUS_TEXT, type TeamType } from '@/types/team'
 import { formatDateTime } from '@/utils/format'
+import { useUnreadStore } from '@/store/unread'
 
 const props = withDefaults(defineProps<{
   teamList: TeamType[]
@@ -72,6 +74,7 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{ (event: 'refresh'): void }>()
+const unreadStore = useUnreadStore()
 const passwordVisible = ref(false)
 const password = ref('')
 const joinTeamId = ref(0)
@@ -83,6 +86,11 @@ function isOwner(team: TeamType): boolean {
 
 function memberCount(team: TeamType): number {
   return typeof team.hasJoinNum === 'number' ? team.hasJoinNum : 0
+}
+
+function unreadText(teamId: number): string {
+  const count = unreadStore.teamCount(teamId)
+  return count > 99 ? '99+' : String(count)
 }
 
 function preJoin(team: TeamType) {
@@ -165,6 +173,7 @@ function goChat(team: TeamType) {
 .team-detail-time { color: #242321; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 10px; }
 .team-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding-top: 13px; border-top: 1px solid rgba(100,116,139,.25); }
 .team-action { display: inline-flex; min-height: 32px; margin: 0; padding: 7px 13px; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 999px; font-size: 12px; font-weight: 500; line-height: 18px; white-space: nowrap; box-shadow: 0 2px 5px rgba(2,6,23,.12); }
+.team-unread-badge { display: grid; min-width: 20px; height: 20px; padding: 0 5px; place-items: center; border: 2px solid rgba(255,255,255,.86); border-radius: 999px; color: #fff; background: #d25157; font-size: 10px; line-height: 16px; }
 .team-action::after { border: 0; }
 .team-action:active { transform: scale(.95); }
 .team-action--primary { color: #242321; background: #fff; }

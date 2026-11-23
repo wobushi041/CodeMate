@@ -13,18 +13,23 @@ import { onShow } from '@dcloudio/uni-app'
 import TeamCardList from '@/components/TeamCardList.vue'
 import { getMyCreatedTeams, getMyJoinedTeams } from '@/api/team'
 import { useUserStore } from '@/store/user'
+import { useUnreadStore } from '@/store/unread'
 import type { TeamType } from '@/types/team'
 import { requireLogin } from '@/utils/navigation'
 
 const props = defineProps<{ mode: 'created' | 'joined' }>()
 const userStore = useUserStore()
+const unreadStore = useUnreadStore()
 const teams = ref<TeamType[]>([])
 const searchText = ref('')
 const loading = ref(false)
 let loadSerial = 0
 
 onShow(() => {
-  if (requireLogin()) loadTeams()
+  if (requireLogin()) {
+    void unreadStore.refresh()
+    loadTeams()
+  }
 })
 
 async function loadTeams() {

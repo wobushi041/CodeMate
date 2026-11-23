@@ -50,6 +50,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { getPrivateMessages, getTeamMessages } from '@/api/chat'
 import { ChatSocket, type ChatSocketStatus } from '@/realtime/chatSocket'
 import { useUserStore } from '@/store/user'
+import { useUnreadStore } from '@/store/unread'
 import type { ChatMessage } from '@/types/chat'
 import { formatTime } from '@/utils/format'
 
@@ -64,6 +65,7 @@ const props = withDefaults(defineProps<{
 })
 
 const userStore = useUserStore()
+const unreadStore = useUnreadStore()
 const messages = ref<ChatMessage[]>([])
 const inputContent = ref('')
 const loading = ref(false)
@@ -104,6 +106,7 @@ async function loadHistory() {
       if (!history.some((item) => isSameMessage(item, message))) merged.push(message)
     })
     messages.value = merged.sort((left, right) => messageTimestamp(left) - messageTimestamp(right))
+    await markConversationRead()
     scrollToBottom()
   } catch {
     // 请求层统一提示
@@ -132,7 +135,11 @@ function connect() {
         return
       }
       if (data.type === chatType) {
-        appendMessage(data)
+        const belongsToCurrentConversation = props.mode === 'private'
+          ? Number(data.sessionId) === Number(props.conversationId)
+          : Number(data.teamId) === Number(props.conversationId)
+        if (belongsToCurrentConversation) appendMessage(data)
+        else void unreadStore.refresh()
         return
       }
       if (data.type === 'ERROR') {
@@ -183,7 +190,13 @@ function messageTimestamp(message: ChatMessage): number {
 function appendMessage(message: ChatMessage) {
   const exists = messages.value.some((item) => isSameMessage(item, message))
   if (!exists) messages.value.push(message)
+  if (!isSelf(message)) void markConversationRead()
   scrollToBottom()
+}
+
+async function markConversationRead() {
+  if (props.mode === 'private') await unreadStore.readPrivate(props.conversationId)
+  else await unreadStore.readTeam(props.conversationId)
 }
 
 function isSelf(message: ChatMessage): boolean {

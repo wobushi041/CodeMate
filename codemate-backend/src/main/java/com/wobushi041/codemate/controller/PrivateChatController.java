@@ -9,6 +9,7 @@ import com.wobushi041.codemate.exception.BusinessException;
 import com.wobushi041.codemate.model.domain.User;
 import com.wobushi041.codemate.model.request.PrivateChatStartRequest;
 import com.wobushi041.codemate.model.vo.PrivateChatSessionVO;
+import com.wobushi041.codemate.model.vo.PrivateChatUnreadVO;
 import com.wobushi041.codemate.service.PrivateChatService;
 import com.wobushi041.codemate.service.UserService;
 import lombok.extern.slf4j.Slf4j;
@@ -18,11 +19,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Min;
+
+import java.util.List;
 
 /**
  * 单人私聊控制层
@@ -88,6 +92,26 @@ public class PrivateChatController {
         User loginUser = userService.getLoginUserFromRequest(request);
         Page<ChatMessageResponse> messagePage = privateChatService.listSessionMessages(sessionId, pageNum, pageSize, loginUser);
         return ResultUtils.success(messagePage);
+    }
+
+    /**
+     * 查询当前用户的私聊未读消息统计
+     */
+    @GetMapping("/unread")
+    public BaseResponse<List<PrivateChatUnreadVO>> listUnreadCounts(HttpServletRequest request) {
+        User loginUser = userService.getLoginUserFromRequest(request);
+        return ResultUtils.success(privateChatService.listUnreadCounts(loginUser));
+    }
+
+    /**
+     * 将指定私聊会话标记为已读
+     */
+    @PostMapping("/sessions/{sessionId}/read")
+    public BaseResponse<Boolean> markSessionRead(@PathVariable("sessionId") @Min(1) Long sessionId,
+                                                 HttpServletRequest request) {
+        User loginUser = userService.getLoginUserFromRequest(request);
+        privateChatService.markSessionRead(sessionId, loginUser);
+        return ResultUtils.success(true);
     }
 
 }
