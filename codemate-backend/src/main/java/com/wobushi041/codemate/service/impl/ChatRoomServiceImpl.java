@@ -10,9 +10,11 @@ import com.wobushi041.codemate.chat.ChatMessageResponse;
 import com.wobushi041.codemate.common.ErrorCode;
 import com.wobushi041.codemate.exception.BusinessException;
 import com.wobushi041.codemate.mapper.UserMapper;
+import com.wobushi041.codemate.mapper.UserTeamMapper;
 import com.wobushi041.codemate.model.domain.Team;
 import com.wobushi041.codemate.model.domain.User;
 import com.wobushi041.codemate.model.domain.UserTeam;
+import com.wobushi041.codemate.model.vo.TeamChatUnreadVO;
 import com.wobushi041.codemate.service.ChatMessageService;
 import com.wobushi041.codemate.service.ChatRoomService;
 import com.wobushi041.codemate.service.TeamService;
@@ -26,6 +28,7 @@ import org.springframework.stereotype.Service;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -57,6 +60,11 @@ public class ChatRoomServiceImpl implements ChatRoomService {
      * 注入用户队伍关联服务依赖
      */
     private final UserTeamService userTeamService;
+
+    /**
+     * 注入用户队伍关联持久层依赖
+     */
+    private final UserTeamMapper userTeamMapper;
 
     /**
      * 注入 Netty 聊天通道管理依赖
@@ -127,11 +135,10 @@ public class ChatRoomServiceImpl implements ChatRoomService {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "消息内容不能为空且不能超过2048个字符");
         }
 
-        // 组装标准聊天广播消息体并向房间内在线客户端实时广播
+        // 组装标准聊天广播消息体
         ChatMessageResponse response = buildChatResponse(teamId, loginUser, request);
-        broadcast(teamId, response);
 
-        // 优先写入 MySQL 持久化，失败时降级写入 Redis 容灾列表
+        // 优先写入 MySQL 以回填消息 id，失败时降级写入 Redis 容灾列表
         try {
             chatMessageService.saveMessage(response);
         } catch (Exception e) {
@@ -142,6 +149,9 @@ public class ChatRoomServiceImpl implements ChatRoomService {
                 log.error("save chat message fallback to redis failed, teamId={}, userId={}", teamId, loginUser.getId(), redisException);
             }
         }
+
+        // 持久化完成后广播，客户端可直接使用消息 id 推进已读位置
+        broadcast(teamId, response);
     }
 
     /**
@@ -171,6 +181,23 @@ public class ChatRoomServiceImpl implements ChatRoomService {
         if (count <= 0) {
             throw new BusinessException(ErrorCode.NO_AUTH, "未加入队伍，不能进入聊天室");
         }
+    }
+
+    @Override
+    public List<TeamChatUnreadVO> listUnreadCounts(User loginUser) {
+        if (loginUser == null || loginUser.getId() <= 0) {
+            throw new BusinessException(ErrorCode.NOT_LOGIN, "未登录");
+        }
+        return userTeamMapper.listChatUnreadCounts(loginUser.getId());
+    }
+
+    @Override
+    public void markTeamRoomRead(Long teamId, User loginUser) {
+        if (loginUser == null || loginUser.getId() <= 0) {
+            throw new BusinessException(ErrorCode.NOT_LOGIN, "未登录");
+        }
+        ensureTeamMember(teamId, loginUser.getId());
+        userTeamMapper.markTeamChatRead(teamId, loginUser.getId());
     }
 
     /**

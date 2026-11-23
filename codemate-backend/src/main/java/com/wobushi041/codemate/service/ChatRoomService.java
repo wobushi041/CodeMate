@@ -2,7 +2,10 @@ package com.wobushi041.codemate.service;
 
 import com.wobushi041.codemate.chat.ChatInboundMessage;
 import com.wobushi041.codemate.model.domain.User;
+import com.wobushi041.codemate.model.vo.TeamChatUnreadVO;
 import io.netty.channel.Channel;
+
+import java.util.List;
 
 /**
  * 队伍聊天室服务
@@ -36,5 +39,21 @@ public interface ChatRoomService {
      * @param userId 用户 id
      */
     void ensureTeamMember(Long teamId, Long userId);
+
+    /**
+     * 查询当前用户各队伍聊天室的未读消息数
+     *
+     * @param loginUser 当前登录用户
+     * @return 队伍聊天室未读统计列表
+     */
+    List<TeamChatUnreadVO> listUnreadCounts(User loginUser);
+
+    /**
+     * 将指定队伍聊天室标记为已读
+     *
+     * @param teamId    队伍 id
+     * @param loginUser 当前登录用户
+     */
+    void markTeamRoomRead(Long teamId, User loginUser);
 
 }

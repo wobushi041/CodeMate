@@ -229,16 +229,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     public User getLoginUserFromRequest(HttpServletRequest request, String authorization) {
         // 请求携带 Bearer Token 时必须通过 Token 鉴权，避免无效 Token 回退到其他会话
         if (StringUtils.isNotBlank(authorization) && authorization.startsWith(BEARER_PREFIX)) {
-            String token = authorization.substring(BEARER_PREFIX.length()).trim();
-            if (token.isEmpty()) {
-                throw new BusinessException(ErrorCode.NOT_LOGIN, "登录凭证为空");
-            }
-            RBucket<User> tokenBucket = redissonClient.getBucket(UNI_APP_TOKEN_PREFIX + token);
-            User loginUser = tokenBucket.get();
-            if (loginUser == null) {
-                throw new BusinessException(ErrorCode.NOT_LOGIN, "登录凭证无效或已过期");
-            }
-            return loginUser;
+            return getLoginUserByAuthorization(authorization);
         }
 
         // 未携带 Bearer Token 时沿用原 Session 登录态，兼容现有 Web 前端
@@ -247,6 +238,29 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             throw new BusinessException(ErrorCode.NULL_ERROR, "用户未登录");
         }
         return (User) userObj;
+    }
+
+    /**
+     * 仅根据 Bearer Token 获取登录用户，供 WebSocket 等非 Servlet 请求链路使用
+     *
+     * @param authorization Authorization 请求头内容
+     * @return 当前登录用户实体
+     */
+    @Override
+    public User getLoginUserByAuthorization(String authorization) {
+        if (StringUtils.isBlank(authorization) || !authorization.startsWith(BEARER_PREFIX)) {
+            throw new BusinessException(ErrorCode.NOT_LOGIN, "登录凭证无效");
+        }
+        String token = authorization.substring(BEARER_PREFIX.length()).trim();
+        if (token.isEmpty()) {
+            throw new BusinessException(ErrorCode.NOT_LOGIN, "登录凭证为空");
+        }
+        RBucket<User> tokenBucket = redissonClient.getBucket(UNI_APP_TOKEN_PREFIX + token);
+        User loginUser = tokenBucket.get();
+        if (loginUser == null) {
+            throw new BusinessException(ErrorCode.NOT_LOGIN, "登录凭证无效或已过期");
+        }
+        return loginUser;
     }
 
     /**

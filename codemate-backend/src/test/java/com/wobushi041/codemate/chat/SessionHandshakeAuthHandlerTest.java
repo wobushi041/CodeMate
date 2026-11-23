@@ -1,6 +1,7 @@
 package com.wobushi041.codemate.chat;
 
 import com.wobushi041.codemate.model.domain.User;
+import com.wobushi041.codemate.service.UserService;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -19,6 +20,8 @@ import static com.wobushi041.codemate.contant.UserConstant.USER_LOGIN_STATE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * WebSocket 握手会话认证处理器单元测试
@@ -42,7 +45,7 @@ class SessionHandshakeAuthHandlerTest {
         session.setAttribute(USER_LOGIN_STATE, loginUser);
         InMemorySessionRepository sessionRepository = new InMemorySessionRepository(session);
 
-        EmbeddedChannel channel = new EmbeddedChannel(new SessionHandshakeAuthHandler(sessionRepository));
+        EmbeddedChannel channel = new EmbeddedChannel(new SessionHandshakeAuthHandler(sessionRepository, mock(UserService.class)));
         FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/ws/chat");
         request.headers().set(HttpHeaderNames.COOKIE, "SESSION=session-123");
 
@@ -65,7 +68,8 @@ class SessionHandshakeAuthHandlerTest {
     @Test
     void rejectsRequestWithoutValidSpringSessionCookie() {
         // 1. 准备测试数据
-        EmbeddedChannel channel = new EmbeddedChannel(new SessionHandshakeAuthHandler(new InMemorySessionRepository()));
+        EmbeddedChannel channel = new EmbeddedChannel(new SessionHandshakeAuthHandler(
+                new InMemorySessionRepository(), mock(UserService.class)));
         FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/ws/chat");
 
         // 2. 调用待测方法写入未认证请求
@@ -77,6 +81,32 @@ class SessionHandshakeAuthHandlerTest {
         assertEquals(HttpResponseStatus.UNAUTHORIZED, response.status());
 
         response.release();
+        channel.finishAndReleaseAll();
+    }
+
+    /**
+     * 测试携带合法 uni-app Bearer Token 的请求通过认证并绑定用户到通道
+     */
+    @Test
+    void acceptsRequestWithValidBearerTokenAndBindsUserToChannel() {
+        User loginUser = new User();
+        loginUser.setId(42L);
+        loginUser.setUsername("mini-program-user");
+        UserService userService = mock(UserService.class);
+        when(userService.getLoginUserByAuthorization("Bearer token-123")).thenReturn(loginUser);
+
+        EmbeddedChannel channel = new EmbeddedChannel(new SessionHandshakeAuthHandler(
+                new InMemorySessionRepository(), userService));
+        FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/ws/chat");
+        request.headers().set(HttpHeaderNames.AUTHORIZATION, "Bearer token-123");
+
+        channel.writeInbound(request);
+
+        assertSame(loginUser, channel.attr(ChatAttributes.LOGIN_USER).get());
+        assertSame(request, channel.readInbound());
+        assertNull(channel.readOutbound());
+
+        request.release();
         channel.finishAndReleaseAll();
     }
 

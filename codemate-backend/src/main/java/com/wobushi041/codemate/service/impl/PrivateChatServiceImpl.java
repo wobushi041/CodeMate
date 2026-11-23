@@ -1,7 +1,6 @@
 package com.wobushi041.codemate.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -17,6 +16,7 @@ import com.wobushi041.codemate.model.domain.PrivateChatMessage;
 import com.wobushi041.codemate.model.domain.PrivateChatSession;
 import com.wobushi041.codemate.model.domain.User;
 import com.wobushi041.codemate.model.vo.PrivateChatSessionVO;
+import com.wobushi041.codemate.model.vo.PrivateChatUnreadVO;
 import com.wobushi041.codemate.model.vo.UserVO;
 import com.wobushi041.codemate.service.PrivateChatService;
 import com.wobushi041.codemate.service.UserService;
@@ -281,14 +281,9 @@ public class PrivateChatServiceImpl extends ServiceImpl<PrivateChatSessionMapper
         }
         ensureSessionParticipant(sessionId, loginUser.getId());
 
-        // 将当前会话中发送给当前用户的未读消息批量标记为已读
+        // 打开会话即清除该会话未读状态；失败时不阻断历史消息加载
         try {
-            LambdaUpdateWrapper<PrivateChatMessage> updateWrapper = new LambdaUpdateWrapper<>();
-            updateWrapper.eq(PrivateChatMessage::getSessionId, sessionId)
-                    .eq(PrivateChatMessage::getToUserId, loginUser.getId())
-                    .eq(PrivateChatMessage::getIsRead, 0)
-                    .set(PrivateChatMessage::getIsRead, 1);
-            privateChatMessageMapper.update(null, updateWrapper);
+            markSessionRead(sessionId, loginUser);
         } catch (Exception e) {
             log.warn("mark private messages as read failed, sessionId={}, userId={}", sessionId, loginUser.getId(), e);
         }
@@ -320,6 +315,23 @@ public class PrivateChatServiceImpl extends ServiceImpl<PrivateChatSessionMapper
         responsePage.setRecords(records);
         responsePage.setTotal(messagePage.getTotal());
         return responsePage;
+    }
+
+    @Override
+    public List<PrivateChatUnreadVO> listUnreadCounts(User loginUser) {
+        if (loginUser == null || loginUser.getId() <= 0) {
+            throw new BusinessException(ErrorCode.NOT_LOGIN, "未登录");
+        }
+        return privateChatMessageMapper.listUnreadCounts(loginUser.getId());
+    }
+
+    @Override
+    public void markSessionRead(Long sessionId, User loginUser) {
+        if (loginUser == null || loginUser.getId() <= 0) {
+            throw new BusinessException(ErrorCode.NOT_LOGIN, "未登录");
+        }
+        ensureSessionParticipant(sessionId, loginUser.getId());
+        privateChatMessageMapper.markSessionRead(sessionId, loginUser.getId());
     }
 
     /**

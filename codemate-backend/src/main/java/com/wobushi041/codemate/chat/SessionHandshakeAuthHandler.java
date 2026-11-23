@@ -1,6 +1,7 @@
 package com.wobushi041.codemate.chat;
 
 import com.wobushi041.codemate.model.domain.User;
+import com.wobushi041.codemate.service.UserService;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -43,13 +44,20 @@ public class SessionHandshakeAuthHandler extends SimpleChannelInboundHandler<Ful
     private final SessionRepository<? extends Session> sessionRepository;
 
     /**
+     * 用户服务，用于校验 uni-app Bearer Token
+     */
+    private final UserService userService;
+
+    /**
      * 构造握手认证处理器
      *
      * @param sessionRepository Spring Session 数据仓储
+     * @param userService       用户服务
      */
-    public SessionHandshakeAuthHandler(SessionRepository<? extends Session> sessionRepository) {
+    public SessionHandshakeAuthHandler(SessionRepository<? extends Session> sessionRepository, UserService userService) {
         // 初始化 Session 数据仓储引用
         this.sessionRepository = sessionRepository;
+        this.userService = userService;
     }
 
     /**
@@ -79,6 +87,17 @@ public class SessionHandshakeAuthHandler extends SimpleChannelInboundHandler<Ful
      * @return 已登录的 User 实体；若未登录或会话不存在则返回 null
      */
     private User resolveLoginUser(FullHttpRequest request) {
+        // 小程序 WebSocket 无法复用浏览器 Session Cookie，优先校验登录接口签发的 Bearer Token
+        String authorization = request.headers().get(HttpHeaderNames.AUTHORIZATION);
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            try {
+                return userService.getLoginUserByAuthorization(authorization);
+            } catch (RuntimeException e) {
+                log.warn("websocket handshake rejected: invalid Authorization header, uri={}", request.uri());
+                return null;
+            }
+        }
+
         // 提取并校验请求头中的 Cookie 字符串
         String cookieHeader = request.headers().get(HttpHeaderNames.COOKIE);
         if (cookieHeader == null || cookieHeader.isBlank()) {

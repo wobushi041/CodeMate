@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onShow } from '@dcloudio/uni-app'
 import PartnerCard from '@/components/PartnerCard.vue'
 import { startPrivateChat } from '@/api/chat'
 import { getRecommendUsers, searchUsersByTags } from '@/api/partner'
@@ -24,11 +24,13 @@ import type { UserType } from '@/types/api'
 import { markUserContacted } from '@/utils/contacted'
 import { requireLogin } from '@/utils/navigation'
 import { decodeQueryJson } from '@/utils/query'
+import { useUnreadStore } from '@/store/unread'
 
 const users = ref<UserType[]>([])
 const loading = ref(false)
 const contactingUserId = ref<number | null>(null)
 const tags = ref<string[]>([])
+const unreadStore = useUnreadStore()
 
 onLoad((options) => {
   if (!requireLogin()) return
@@ -36,6 +38,8 @@ onLoad((options) => {
   tags.value = Array.isArray(parsed) ? parsed.map(String) : []
   loadUsers()
 })
+
+onShow(() => { void unreadStore.refresh() })
 
 async function loadUsers() {
   loading.value = true
