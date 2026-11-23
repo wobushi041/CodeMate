@@ -34,6 +34,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -182,32 +183,15 @@ public class TeamController {
             return ResultUtils.success(new ArrayList<>());
         }
 
-        // 标注当前登录用户是否已加入查询出的各个队伍
-        final List<Long> teamIdList = teamList.stream().map(TeamUserVO::getId).collect(Collectors.toList());
-        QueryWrapper<UserTeam> queryWrapper = new QueryWrapper<>();
+        // 登录不是公开列表的必要条件；未登录时仍返回准确的队伍人数
+        Long currentUserId = null;
         try {
             User loginUserFromRequest = userService.getLoginUserFromRequest(request);
-            queryWrapper.in("teamId", teamIdList);
-            queryWrapper.eq("userId", loginUserFromRequest.getId());
-            List<UserTeam> userTeamList = userTeamService.list(queryWrapper);
-            Set<Long> hasJoinTeamIdSet = userTeamList.stream().map(UserTeam::getTeamId).collect(Collectors.toSet());
-            teamList.forEach(team -> {
-                boolean hasJoin = hasJoinTeamIdSet.contains(team.getId());
-                team.setHasJoin(hasJoin);
-            });
+            currentUserId = loginUserFromRequest.getId();
         } catch (Exception e) {
             log.error("获取用户信息失败", e);
         }
-
-        // 统计并填充每个队伍的当前已加入成员数量
-        QueryWrapper<UserTeam> userTeamJoinQueryWrapper = new QueryWrapper<>();
-        userTeamJoinQueryWrapper.in("teamId", teamIdList);
-        List<UserTeam> userTeamJoinList = userTeamService.list(userTeamJoinQueryWrapper);
-        Map<Long, List<UserTeam>> teamIdUserTeamMap = userTeamJoinList.stream()
-                .collect(Collectors.groupingBy(UserTeam::getTeamId));
-        teamList.forEach(team -> {
-            team.setHasJoinNum(teamIdUserTeamMap.getOrDefault(team.getId(), new ArrayList<>()).size());
-        });
+        fillTeamMembershipInfo(teamList, currentUserId);
         return ResultUtils.success(teamList);
     }
 
@@ -293,6 +277,7 @@ public class TeamController {
         User loginUser = userService.getLoginUserFromRequest(request);
         teamQuery.setUserId(loginUser.getId());
         List<TeamUserVO> teamList = teamService.listTeams(teamQuery, true);
+        fillTeamMembershipInfo(teamList, loginUser.getId());
         return ResultUtils.success(teamList);
     }
 
@@ -315,14 +300,71 @@ public class TeamController {
         QueryWrapper<UserTeam> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("userId", loginUser.getId());
         List<UserTeam> userTeamList = userTeamService.list(queryWrapper);
+        if (CollectionUtils.isEmpty(userTeamList)) {
+            return ResultUtils.success(new ArrayList<>());
+        }
 
         // 提取去重后的队伍 id 列表并查询队伍详情
-        Map<Long, List<UserTeam>> listMap = userTeamList.stream()
-                .collect(Collectors.groupingBy(UserTeam::getTeamId));
-        List<Long> idList = new ArrayList<>(listMap.keySet());
+        List<Long> idList = userTeamList.stream()
+                .map(UserTeam::getTeamId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (CollectionUtils.isEmpty(idList)) {
+            return ResultUtils.success(new ArrayList<>());
+        }
         teamQuery.setIdList(idList);
         List<TeamUserVO> teamList = teamService.listTeams(teamQuery, true);
+        fillTeamMembershipInfo(teamList, loginUser.getId());
         return ResultUtils.success(teamList);
+    }
+
+    /**
+     * 填充队伍成员人数及当前用户的加入状态。
+     *
+     * @param teamList      待填充的队伍列表
+     * @param currentUserId 当前用户 id，未登录时为 null
+     */
+    private void fillTeamMembershipInfo(List<TeamUserVO> teamList, Long currentUserId) {
+        if (CollectionUtils.isEmpty(teamList)) {
+            return;
+        }
+
+        List<Long> teamIdList = teamList.stream()
+                .map(TeamUserVO::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (CollectionUtils.isEmpty(teamIdList)) {
+            teamList.forEach(team -> {
+                team.setHasJoinNum(0);
+                team.setHasJoin(false);
+            });
+            return;
+        }
+
+        QueryWrapper<UserTeam> queryWrapper = new QueryWrapper<>();
+        queryWrapper.in("teamId", teamIdList);
+        List<UserTeam> userTeamList = userTeamService.list(queryWrapper);
+        if (CollectionUtils.isEmpty(userTeamList)) {
+            teamList.forEach(team -> {
+                team.setHasJoinNum(0);
+                team.setHasJoin(false);
+            });
+            return;
+        }
+        Map<Long, Set<Long>> teamMemberIds = userTeamList.stream()
+                .filter(userTeam -> userTeam.getTeamId() != null && userTeam.getUserId() != null)
+                .collect(Collectors.groupingBy(
+                        UserTeam::getTeamId,
+                        Collectors.mapping(UserTeam::getUserId, Collectors.toSet())
+                ));
+
+        teamList.forEach(team -> {
+            Set<Long> memberIds = teamMemberIds.getOrDefault(team.getId(), java.util.Collections.emptySet());
+            team.setHasJoinNum(memberIds.size());
+            team.setHasJoin(currentUserId != null && memberIds.contains(currentUserId));
+        });
     }
 
 }

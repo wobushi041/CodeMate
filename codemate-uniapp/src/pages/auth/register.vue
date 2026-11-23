@@ -8,11 +8,11 @@
       <view class="register-card">
         <view class="register-field-group"><text class="register-label">账号</text><input v-model="form.userAccount" placeholder="设置你的账号" :maxlength="32" /></view>
         <view class="register-field-group">
-          <text class="register-label">密码</text>
+          <text class="register-label">密码(最少8位)</text>
           <view class="register-password-wrap"><input v-model="form.userPassword" :type="showPassword ? 'text' : 'password'" placeholder="设置登录密码" :maxlength="64" /><button @click="showPassword = !showPassword"><wd-icon :name="showPassword ? 'browse-off' : 'browse'" size="20px" /></button></view>
         </view>
         <view class="register-field-group">
-          <text class="register-label">确认密码</text>
+          <text class="register-label">确认密码(最少8位)</text>
           <view class="register-password-wrap"><input v-model="form.checkPassword" :type="showCheckPassword ? 'text' : 'password'" placeholder="再次输入登录密码" :maxlength="64" @confirm="submitRegister" /><button @click="showCheckPassword = !showCheckPassword"><wd-icon :name="showCheckPassword ? 'browse-off' : 'browse'" size="20px" /></button></view>
         </view>
         <view class="register-field-group"><text class="register-label">用户编号</text><input v-model="form.planetCode" placeholder="设置你的用户编号" /></view>

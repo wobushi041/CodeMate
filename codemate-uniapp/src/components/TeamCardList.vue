@@ -82,8 +82,7 @@ function isOwner(team: TeamType): boolean {
 }
 
 function memberCount(team: TeamType): number {
-  if (typeof team.hasJoinNum === 'number') return team.hasJoinNum
-  return isOwner(team) || team.hasJoin ? 1 : 0
+  return typeof team.hasJoinNum === 'number' ? team.hasJoinNum : 0
 }
 
 function preJoin(team: TeamType) {
