@@ -3,6 +3,7 @@ package com.wobushi041.codemate.chat;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wobushi041.codemate.service.ChatRoomService;
 import com.wobushi041.codemate.service.PrivateChatService;
+import com.wobushi041.codemate.service.UserService;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
@@ -55,6 +56,11 @@ public class NettyWebSocketServer implements SmartLifecycle {
      * 注入单人私聊业务服务依赖
      */
     private final PrivateChatService privateChatService;
+
+    /**
+     * 注入用户服务，用于 WebSocket 握手阶段校验 uni-app Token
+     */
+    private final UserService userService;
 
     /**
      * 注入 Jackson JSON 序列化工具依赖
@@ -113,7 +119,7 @@ public class NettyWebSocketServer implements SmartLifecycle {
                             ChannelPipeline pipeline = channel.pipeline();
                             pipeline.addLast(new HttpServerCodec());
                             pipeline.addLast(new HttpObjectAggregator(65536));
-                            pipeline.addLast(new SessionHandshakeAuthHandler(sessionRepository));
+                            pipeline.addLast(new SessionHandshakeAuthHandler(sessionRepository, userService));
                             pipeline.addLast(new WebSocketServerProtocolHandler(properties.getPath(), null, true));
                             pipeline.addLast(new ChatConnectionHandler(
                                     chatChannelManager, chatRoomService, privateChatService, objectMapper));

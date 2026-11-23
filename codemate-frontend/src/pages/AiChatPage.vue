@@ -143,6 +143,16 @@ const removeUnpairedBacktick = (text: string) => {
   return text.slice(0, last) + text.slice(last + 1);
 };
 
+const normalizeHeadingMarkers = (text: string) => {
+  return text
+    // 大模型经常省略标题标记后的空格，例如 "###Java 基础"。
+    .replace(/(^|\n)[\t ]*(#{1,6})[\t ]*(?=[^\s#])/g, '$1$2 ')
+    // 流式输出偶尔会把二级及以下标题拼到上一段末尾。
+    .replace(/([^#\n])[\t ]*(#{2,6})[\t ]*(?=[^\s#])/g, '$1\n\n$2 ')
+    // 标准标题被拼接到上一段时，也恢复为独立的 Markdown 块。
+    .replace(/([^#\n])[\t ]+(#{1,6})[\t ]+(?=\S)/g, '$1\n\n$2 ');
+};
+
 const normalizeMarkdown = (text: string) => {
   const source = (text || '').replace(/\\n/g, '\n').replace(/\r\n/g, '\n');
   const orderedListMarker = String.raw`\d{1,2}[.．、](?!\d)`;
@@ -153,10 +163,9 @@ const normalizeMarkdown = (text: string) => {
       if (part.startsWith('```')) {
         return part;
       }
-      const normalizedPart = part
+      const normalizedPart = normalizeHeadingMarkers(part)
         .replace(/\*\*(?=[^\n*]{1,48}\n\s*[-*+]\s+)/g, '')
         .replace(/(\n\s*[-*+]\s+[^\n*]{1,80})\*\*/g, '$1')
-        .replace(/([^\n])\s*(#{1,6}\s+)/g, '$1\n\n$2')
         .replace(/\s*[-–—]{2,}\s*([^-\n]{2,24}[：:])\s*/g, '\n\n**$1**\n\n')
         .replace(/([:：。！？!?])\s*[-–—]\s*(?=["“\u4e00-\u9fa5A-Za-z0-9])/g, '$1\n\n- ')
         .replace(/(["”'）?？])\s*[-–—]\s*(?=["“\u4e00-\u9fa5A-Za-z0-9])/g, '$1\n- ')
@@ -499,18 +508,47 @@ onMounted(async () => {
 .message-text :deep(h1),
 .message-text :deep(h2),
 .message-text :deep(h3),
-.message-text :deep(h4) {
-  margin: 12px 0 8px;
+.message-text :deep(h4),
+.message-text :deep(h5),
+.message-text :deep(h6) {
+  margin: 16px 0 8px;
   color: #f8fafc;
-  font-size: 15px;
-  line-height: 1.45;
+  line-height: 1.5;
   font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.message-text :deep(h1) {
+  margin-bottom: 10px;
+  font-size: 18px;
+}
+
+.message-text :deep(h2) {
+  font-size: 16px;
+}
+
+.message-text :deep(h3) {
+  font-size: 15px;
+}
+
+.message-text :deep(h4),
+.message-text :deep(h5),
+.message-text :deep(h6) {
+  font-size: 14px;
 }
 
 .message-text :deep(h1:first-child),
 .message-text :deep(h2:first-child),
 .message-text :deep(h3:first-child),
-.message-text :deep(h4:first-child) {
+.message-text :deep(h4:first-child),
+.message-text :deep(h5:first-child),
+.message-text :deep(h6:first-child) {
+  margin-top: 0;
+}
+
+.message-text :deep(h1 + p),
+.message-text :deep(h2 + p),
+.message-text :deep(h3 + p) {
   margin-top: 0;
 }
 
@@ -575,7 +613,9 @@ onMounted(async () => {
 .user-message-bubble .message-text :deep(h1),
 .user-message-bubble .message-text :deep(h2),
 .user-message-bubble .message-text :deep(h3),
-.user-message-bubble .message-text :deep(h4) {
+.user-message-bubble .message-text :deep(h4),
+.user-message-bubble .message-text :deep(h5),
+.user-message-bubble .message-text :deep(h6) {
   color: #030712;
 }
 

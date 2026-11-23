@@ -100,6 +100,12 @@ public class ChatConnectionHandler extends SimpleChannelInboundHandler<TextWebSo
 
             // 分发处理发送单人私聊消息请求
             if ("PRIVATE_CHAT".equalsIgnoreCase(request.getType())) {
+                // PRIVATE_JOIN 已校验参与者身份并将会话绑定到当前连接；发送时以连接上下文为准，
+                // 兼容小程序旧构建或运行时未携带 sessionId 的消息帧。
+                Long boundSessionId = ctx.channel().attr(ChatAttributes.SESSION_ID).get();
+                if (boundSessionId != null && boundSessionId > 0) {
+                    request.setSessionId(boundSessionId);
+                }
                 privateChatService.sendPrivateMessage(loginUser, ctx.channel(), request);
                 return;
             }

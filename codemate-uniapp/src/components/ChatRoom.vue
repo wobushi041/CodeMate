@@ -151,6 +151,7 @@ async function sendMessage() {
   try {
     const sent = await socket.send({
       type: props.mode === 'private' ? 'PRIVATE_CHAT' : 'CHAT',
+      ...(props.mode === 'private' ? { sessionId: props.conversationId } : {}),
       clientMessageId,
       content,
     })

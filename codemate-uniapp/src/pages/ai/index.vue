@@ -62,10 +62,16 @@ let cancelStream: (() => void) | null = null
 let revealTimer: ReturnType<typeof setInterval> | null = null
 let revealQueue = ''
 let activeAiIndex = -1
+let hasAutoGreeted = false
 
-onShow(() => {
+onShow(async () => {
   uni.hideTabBar({ animation: false })
-  if (requireLogin() && !userStore.userInfo) userStore.fetchCurrentUser().catch(() => undefined)
+  if (!requireLogin()) return
+  if (!userStore.userInfo) await userStore.fetchCurrentUser().catch(() => undefined)
+  if (!hasAutoGreeted && !messages.value.length && !loading.value) {
+    hasAutoGreeted = true
+    sendAndStream('你好，请简短介绍一下你能帮我什么', true)
+  }
 })
 onUnmounted(() => stop())
 function isStreaming(message: AiMessage, index: number) { return loading.value && message.role === 'ai' && index === messages.value.length - 1 && !message.content }
@@ -74,12 +80,17 @@ function formatMessageTime(timestamp: number) { const date = new Date(timestamp)
 function send() {
   const content = input.value.trim()
   if (!content || loading.value) return
+  input.value = ''
+  sendAndStream(content)
+}
+
+function sendAndStream(content: string, silent = false) {
+  if (!content || loading.value) return
   errorText.value = ''
   const now = Date.now()
-  messages.value.push({ id: `user-${now}`, role: 'user', content, createdAt: now })
+  if (!silent) messages.value.push({ id: `user-${now}`, role: 'user', content, createdAt: now })
   messages.value.push({ id: `ai-${now}`, role: 'ai', content: '', createdAt: now })
   activeAiIndex = messages.value.length - 1
-  input.value = ''
   loading.value = true
   scrollToBottom()
   cancelStream = streamAiChat(content, {

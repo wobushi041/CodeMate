@@ -85,6 +85,14 @@ public interface UserService extends IService<User> {
     User getLoginUserFromRequest(HttpServletRequest request, String authorization);
 
     /**
+     * 仅根据 Bearer Token 获取登录用户，供非 Servlet 链路（如 WebSocket 握手）复用
+     *
+     * @param authorization Authorization 请求头内容
+     * @return 当前登录用户实体
+     */
+    User getLoginUserByAuthorization(String authorization);
+
+    /**
      * 根据标签列表搜索匹配的用户列表
      *
      * @param tagNamelist 标签名称列表
