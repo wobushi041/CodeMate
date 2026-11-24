@@ -69,6 +69,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     private static final String BEARER_PREFIX = "Bearer ";
 
     /**
+     * 用户手机号格式：恰好 11 位数字
+     */
+    private static final Pattern PHONE_PATTERN = Pattern.compile("^\\d{11}$");
+
+    /**
      * 注入用户持久层依赖
      */
     @Resource
@@ -561,6 +566,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         if (userId <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
+        String phone = StringUtils.trim(user.getPhone());
+        if (StringUtils.isNotEmpty(phone) && !PHONE_PATTERN.matcher(phone).matches()) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "手机号必须为11位数字");
+        }
+        user.setPhone(phone);
         if (!isAdmin(loginUserFromRequest) && loginUserFromRequest.getId() != userId) {
             throw new BusinessException(ErrorCode.NO_AUTH);
         }

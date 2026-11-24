@@ -23,7 +23,7 @@
     </view>
     <view class="user-edit__field">
       <text>手机号</text>
-      <input v-model="form.phone" type="number" placeholder="请输入手机号" />
+      <input v-model="form.phone" type="number" :maxlength="11" placeholder="请输入11位手机号" />
     </view>
     <view class="user-edit__field">
       <text>邮箱</text>
@@ -144,6 +144,11 @@ function toggleTag(tag: string) {
 async function save() {
   const user = userStore.userInfo
   if (!user?.id || saving.value) return
+  const phone = form.phone.trim()
+  if (phone && !/^\d{11}$/.test(phone)) {
+    uni.showToast({ title: '手机号必须为11位数字', icon: 'none' })
+    return
+  }
   if (form.email && !/^\S+@\S+\.\S+$/.test(form.email)) {
     uni.showToast({ title: '邮箱格式不正确', icon: 'none' })
     return
@@ -161,7 +166,7 @@ async function save() {
       username: form.username.trim(),
       profile: form.profile.trim(),
       gender: Number(form.gender),
-      phone: form.phone.trim(),
+      phone,
       email: form.email.trim(),
       avatarUrl,
       tags: JSON.stringify(tags),
